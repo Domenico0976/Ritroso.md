@@ -1,104 +1,130 @@
-# Come Funziona Ritroso.md
+# Come Funziona Ritroso.md — v2
 
-## Il Problema che Risolve
+## Cosa è cambiato dalla v1
 
-I modelli LLM tendono a generare output "plausibili" invece di output "coerenti".
-La differenza:
-- **Plausibile**: sembra giusto, segue pattern comuni
-- **Coerente**: è giusto per QUESTO contesto, QUESTO utente, QUESTI vincoli
-
-Ritroso.md forza il modello a passare dal plausibile al coerente.
-
----
-
-## Il Flusso in Dettaglio
-
-### Fase 1 — Acquisizione Sicura del Prompt
-
-Il prompt utente viene salvato **immutato** in `.ritroso_prompt_cache.tmp`.
-Questo è critico: il prompt originale viene usato nel prompt negativo finale
-e NON deve essere sintetizzato, parafrasato o modificato in nessun modo.
-
-```
-PROMPT UTENTE → [salva intero] → .ritroso_prompt_cache.tmp
-```
-
-### Fase 2 — Context Check
-
-Il modello valuta 4 dimensioni:
-- Dominio noto? (dev/design/business/time)
-- Vincoli noti? (tecnici/economici/temporali)
-- Anti-pattern noti? (cosa non fare)
-- Risorse disponibili? (file esistenti nel workspace)
-
-Se anche solo UNA dimensione critica manca → domanda al utente.
-UNA sola domanda, quella più bloccante.
-
-### Fase 3 — Context Mapping
-
-La skill `context-mapper` scansiona il workspace.
-Non è una semplice lista di file — è una valutazione di rilevanza:
-- Questi file contraddicono il prompt?
-- Questi file aggiungono vincoli impliciti?
-- Manca qualcosa che ci si aspetterebbe?
-
-### Fase 4 — Generazione .md Temporaneo
-
-Il file viene generato secondo `project-template.md`.
-Il modello mantiene un **loop interno di coerenza** durante la generazione:
-```
-per ogni sezione generata:
-  → "È coerente con il prompt?"
-  → "Aggiunge complessità inutile?"
-  → "Manca qualcosa di critico?"
-  se sì a qualsiasi → correggi inline
-```
-
-Il formato può essere non-umano se accelera il ragionamento del modello.
-
-### Fase 5 — Prompt Negativo (il cuore del sistema)
-
-Questo è il meccanismo distintivo di Ritroso.md.
-
-Il modello riceve `negative-verification.md` con il prompt utente iniettato.
-Parte dall'assunto che **ha sbagliato tutto**.
-
-Verifica 5 assi:
-1. Coerenza logica con il prompt
-2. Impatto reale (tempo, vendita, risorse, sviluppo)
-3. Peso sulla vita dell'utente
-4. Anti-pattern violati
-5. Domande aperte non risolte
-
-Se trova errori → corregge e loga con `[CORRECTION]`.
-Se regge → marca con `[RITROSO-VERIFIED]`.
-
-### Fase 6 — Output Validato
-
-File finale in `new-ideas/` marcato come `[RITROSO-VERIFIED]`.
-Riepilogo correzioni se ce ne sono.
-Domande ancora aperte segnalate con `[OPEN]`.
+La v1 generava un singolo file `.md` temporaneo.
+La **v2** genera un **set completo di 13 file `.md`** (00_INDEX + 12 file tematici)
+in una cartella dedicata, organizzata automaticamente per tipo di progetto.
+Il sistema è ora **multimodale**: legge testo, codice, immagini, PDF, video
+e repo remoti per costruire il contesto prima di generare.
 
 ---
 
-## Perché "Ritroso"?
+## Il Flusso Completo v2
 
-Il modello fa un percorso in avanti (genera) e poi torna indietro (verifica).
-Il movimento "ritroso" non annulla il lavoro — lo valida.
-
-È ispirato al concetto di **backward induction** nella teoria dei giochi:
-per trovare la strategia ottimale, parti dal risultato finale e vai a ritroso
-per capire se ogni passo che ti ha portato lì era corretto.
+```
+[PROMPT UTENTE]
+      ↓
+[SALVA PROMPT INTERO] → .ritroso_prompt_cache.tmp
+      ↓
+[CLASSIFICA DOMINIO] → domain_slug + project_name_slug
+      ↓
+[CREA CARTELLA] → new-ideas/{domain_slug}/{project_name_slug}/
+      ↓
+[CONTEXT CHECK] → ha abbastanza per il file set?
+      ↓ NO              ↓ SÌ
+[DOMANDA UTENTE]  [CONTEXT MAPPER — multimodale]
+      ↓                 ↓ testo + codice + img + pdf + repo
+[MERGE CONTEXT]   [GENERA 13 FILE .MD]
+      ↓                 ↓ 00_INDEX → 01_GOAL → ... → 12_ASKED
+      └───────────────→↓
+                  [PROMPT NEGATIVO]
+                        ↓ "hai sbagliato tutto, dimostralo"
+                  [CORREZIONI + VERIFICA CROSS-FILE]
+                        ↓
+                  [00_INDEX.md finale] + [RITROSO-VERIFIED]
+```
 
 ---
 
-## Integrazione con Sistemi Esistenti
+## I 13 File del Set
 
-Ritroso.md è progettato per essere compatibile con:
-- **GitHub Copilot** (skill format)
-- **Continue.dev** (custom prompts)
-- **OpenDevin / SWE-agent** (action sequences)
-- **Custom agent pipelines** (YAML action chains)
-- **LangChain / CrewAI** (come step in una chain)
+| # | File | Risponde a |
+|---|------|------------|
+| 00 | INDEX | Mappa di navigazione dell'intero set |
+| 01 | GOAL | Perché esiste il progetto |
+| 02 | PRODUCT | Cosa fa nel dettaglio |
+| 03 | NEXT_STEPS | Cosa fare adesso |
+| 04 | ELEMENTS | Cosa contiene il sistema |
+| 05 | COMPONENTS | Come è costruito |
+| 06 | PRICE | Quanto costa per l'utente |
+| 07 | BUDGET | Quanto costa da produrre |
+| 08 | LIMITS | Cosa non si può/deve fare |
+| 09 | AGENTS | Chi fa cosa (AI + umani) |
+| 10 | ERROR | Cosa può andare storto |
+| 11 | INTERPOLATION | Come tutto si connette |
+| 12 | ASKED | Cosa non sappiamo ancora |
 
-La struttura YAML è deliberatamente generica per massimizzare la portabilità.
+---
+
+## Struttura Cartelle Output
+
+```
+new-ideas/
+├── design-campaign/
+│   └── neeo-campagna/
+│       ├── 00_INDEX.md
+│       ├── 01_GOAL.md
+│       ├── 02_PRODUCT.md
+│       └── ... (13 file totali)
+├── web-development/
+│   └── nome-progetto/
+│       └── ...
+├── ai-agent/
+├── product-strategy/
+├── content-marketing/
+├── infrastructure/
+├── business-plan/
+└── research/
+```
+
+---
+
+## Modalità Multimodale
+
+Il `context-mapper` v2 processa:
+
+| Tipo | Estensioni | Azione |
+|------|-----------|--------|
+| Testo | `.md` `.txt` `.pdf` | legge e riassume |
+| Codice | `.ts` `.js` `.py` `.php` | estrae struttura |
+| Config | `.json` `.yaml` `.env` | legge chiavi |
+| Immagini | `.png` `.jpg` `.svg` | nota presenza |
+| Video | `.mp4` `.mov` | nota presenza |
+| Repo remoti | URL GitHub nel prompt | legge root |
+
+---
+
+## Wikilinks tra File
+
+Ogni file del set contiene `[[wikilink]]` verso gli altri 12.
+Questo permette:
+- Navigazione in Obsidian o qualsiasi viewer MD con wikilinks
+- Il modello verifica durante il prompt negativo che i link siano validi
+- Knowledge graph navigabile del progetto auto-generato
+
+---
+
+## Domain Types
+
+| Slug | Keywords principali |
+|------|--------------------|
+| `design-campaign` | campagna, grafica, visual, brand, UI, UX |
+| `web-development` | app, sito, API, database, Next.js, React |
+| `ai-agent` | agente, LLM, orchestrazione, pipeline |
+| `product-strategy` | MVP, roadmap, feature, lancio |
+| `content-marketing` | post, social, SEO, copy, newsletter |
+| `infrastructure` | deploy, docker, CI/CD, cloud, DNS |
+| `business-plan` | budget, revenue, pricing, investimento |
+| `research` | analisi, benchmark, confronto, report |
+| `generic` | fallback |
+
+---
+
+## Filosofia Invariata
+
+> *"Il modello deve avere torto prima di avere ragione."*
+
+In v2 il prompt negativo è più potente perché verifica
+la **consistenza cross-file** tra tutti i 13 documenti,
+non solo la coerenza di un singolo file con il prompt.

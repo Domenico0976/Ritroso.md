@@ -1,19 +1,27 @@
 # ==============================================================
-# SKILL: ritroso.yaml
-# Sistema di ragionamento contestuale con auto-verifica retroattiva
+# SKILL: ritroso.yaml — v2.0.0
+# Sistema multimodale di generazione contestuale con auto-verifica
 # ==============================================================
 
 name: ritroso
-version: "1.0.0"
+version: "2.0.0"
 description: |
   Skill di ragionamento contestuale per LLM.
-  Il modello genera un file .md temporaneo di progetto,
-  poi si auto-verifica con un prompt negativo prima di produrre output finale.
+  Quando riceve un prompt, il sistema:
+  1. Classifica il tipo di richiesta (domain)
+  2. Crea una cartella dedicata con il nome del tipo di progetto
+  3. Genera un SET COMPLETO di file .md dettagliati per quel progetto
+  4. Ogni file copre una dimensione specifica: GOAL, PRODUCT, NEXT_STEPS,
+     ELEMENTS, COMPONENTS, PRICE, BUDGET, LIMITS, AGENTS, ERROR,
+     INTERPOLATION, ASKED
+  5. Si auto-verifica con prompt negativo prima di consegnare l'output
+  Il sistema è multimodale: legge testo, codice, immagini, PDF, video,
+  repo GitHub e ogni risorsa disponibile nel contesto.
 author: Domenico Fusto
-tags: [reasoning, context, self-verification, project-planning, llm-skill]
+tags: [reasoning, context, self-verification, project-planning, multimodal, llm-skill]
 
 # --------------------------------------------------------------
-# DIPENDENZE DA ALTRE SKILL
+# DIPENDENZE
 # --------------------------------------------------------------
 uses:
   - skills/context-mapper.yaml
@@ -22,56 +30,105 @@ uses:
 # VARIABILI GLOBALI
 # --------------------------------------------------------------
 variables:
-  output_folder: "new-ideas"
+  output_base_folder: "new-ideas"
   temp_prompt_file: ".ritroso_prompt_cache.tmp"
-  temp_project_file: ".ritroso_project_temp.md"
   negative_prompt_ref: "prompts/negative-verification.md"
-  project_template_ref: "prompts/project-template.md"
+  file_set_ref: "prompts/file-set-templates/"
+  # project_type_slug viene risolto in STEP 1b dal domain classifier
+  # output_folder = output_base_folder / project_type_slug / project_name_slug
+
+# --------------------------------------------------------------
+# DOMAIN TYPES — usati per nominare la cartella output
+# --------------------------------------------------------------
+domain_types:
+  - slug: design-campaign
+    keywords: [campagna, grafica, visual, brand, poster, mascotte, layout, UI, UX]
+  - slug: web-development
+    keywords: [app, sito, frontend, backend, API, database, Next.js, React, PHP]
+  - slug: ai-agent
+    keywords: [agente, agent, orchestrazione, LLM, modello, pipeline, skill]
+  - slug: product-strategy
+    keywords: [prodotto, MVP, roadmap, feature, lancio, posizionamento]
+  - slug: content-marketing
+    keywords: [contenuto, post, social, SEO, copy, articolo, newsletter]
+  - slug: infrastructure
+    keywords: [deploy, docker, CI/CD, cloud, server, DNS, infrastruttura]
+  - slug: business-plan
+    keywords: [business, budget, revenue, costi, pricing, investimento]
+  - slug: research
+    keywords: [ricerca, analisi, benchmark, studio, confronto, report]
+  - slug: generic
+    keywords: []  # fallback se nessun dominio è identificato
 
 # ==============================================================
-# STEP 1 — RICEZIONE PROMPT UTENTE
+# STEP 1 — RICEZIONE E SALVATAGGIO PROMPT
 # ==============================================================
 steps:
   - id: receive_prompt
     name: "Ricezione e salvataggio prompt utente"
     action: capture_input
     description: |
-      Il modello riceve il prompt dell'utente.
-      Lo salva immediatamente nel file temporaneo `temp_prompt_file`
-      senza alterarlo, correggere o sintetizzare.
-      Il prompt viene conservato INTERO per il confronto finale.
+      Riceve il prompt INTERO dell'utente.
+      Lo salva immutato in temp_prompt_file.
+      NON sintetizzare. NON correggere. NON parafrasare.
+      Il prompt viene riusato letteralmente nel prompt negativo finale.
     save_to: "{{ temp_prompt_file }}"
     output:
       - raw_prompt: "{{ input }}"
+
+# ==============================================================
+# STEP 1b — CLASSIFICAZIONE DOMINIO E NAMING CARTELLA
+# ==============================================================
+  - id: classify_domain
+    name: "Classificazione dominio e naming cartella output"
+    depends_on: [receive_prompt]
+    action: classify
+    description: |
+      Analizza il prompt per identificare il dominio primario.
+      Usa la lista domain_types per trovare il slug più coerente.
+      Se il prompt tocca più domini → sceglie il più dominante.
+      Se nessun dominio è chiaro → usa 'generic'.
+
+      Costruisce il percorso output:
+        output_folder = new-ideas/{project_type_slug}/{project_name_slug}
+
+      Esempio:
+        prompt: "voglio una campagna per Neeo"
+        → domain: design-campaign
+        → output_folder: new-ideas/design-campaign/neeo-campagna/
+
+      Il project_name_slug viene estratto dal prompt.
+      Max 3 parole, kebab-case, minuscolo.
+    output:
+      - domain_slug: "{{ classified_domain }}"
+      - output_folder: "new-ideas/{{ domain_slug }}/{{ project_name_slug }}"
 
 # ==============================================================
 # STEP 2 — VERIFICA CONTESTO
 # ==============================================================
   - id: context_check
     name: "Verifica completezza contesto"
-    depends_on: [receive_prompt]
+    depends_on: [classify_domain]
     action: evaluate
     description: |
-      Il modello analizza il prompt ricevuto e valuta se ha
-      abbastanza informazioni per costruire una mappa di progetto coerente.
-      
-      Domande interne che il modello DEVE farsi:
-      - Conosco il dominio? (dev, design, vendita, logistica, tempo...)
-      - Conosco i limiti? (tecnologie escluse, vincoli di budget, scadenze)
+      Valuta se il modello ha abbastanza contesto per generare
+      il set completo di 12 file .md.
+
+      Domande interne OBBLIGATORIE:
+      - Conosco il dominio? ✓ (già classificato)
+      - Conosco i limiti tecnici, economici, temporali?
       - Conosco le cose da NON fare?
-      - Conosco le dipendenze o integrazioni richieste?
-      - Ho già risorse disponibili da mappare? (file .md, codice, immagini, PDF)
-    
+      - Ho risorse esistenti da leggere? (file .md, codice, immagini, PDF, repo)
+      - Posso stimare budget, agenti, componenti anche approssimativamente?
     evaluation_criteria:
       - domain_identified: bool
       - constraints_known: bool
       - anti_patterns_known: bool
       - resources_available: bool
-
+      - enough_for_full_set: bool
     on_incomplete:
       action: ask_user
       next_step: context_expansion_question
-
     on_complete:
       next_step: map_resources
 
@@ -79,118 +136,128 @@ steps:
 # STEP 2.5 — DOMANDA DI ESPANSIONE CONTESTO
 # ==============================================================
   - id: context_expansion_question
-    name: "Domanda contestuale al utente"
+    name: "Domanda contestuale"
     action: generate_question
     description: |
-      Se il contesto è insufficiente, il modello genera UNA SOLA domanda
-      focalizzata sulla dimensione più critica mancante.
-      
-      La domanda deve riguardare ESCLUSIVAMENTE:
-      - Funzioni richieste e funzioni escluse
-      - Limiti tecnici, economici o temporali
-      - Dipendenze note e vincoli architetturali
-      - Cose da NON fare nel progetto
-      
-      NON chiedere mai di stile grafico o preferenze estetiche in questo step.
-      NON fare multiple domande. UNA sola, la più bloccante.
-    
+      UNA SOLA domanda, quella più bloccante per la generazione del file set.
+      Focus esclusivo su: funzioni, limiti, vincoli, anti-pattern.
+      MAI chiedere stile, preferenze estetiche o dettagli opzionali.
     prompt_template: |
-      Per costruire una mappa di progetto coerente ho bisogno di capire meglio
-      un aspetto critico del tuo progetto:
-      
+      Per generare il set completo di file per il tuo progetto ho bisogno
+      di capire un aspetto critico:
+
       {{ generated_question }}
-      
-      (Rispondi anche brevemente — mi serve solo per impostare i vincoli corretti.)
-    
+
+      (Anche una risposta breve è sufficiente.)
     after_answer:
       action: merge_context
       next_step: map_resources
 
 # ==============================================================
-# STEP 3 — MAPPATURA RISORSE ESISTENTI
+# STEP 3 — MAPPATURA RISORSE (MULTIMODALE)
 # ==============================================================
   - id: map_resources
-    name: "Mappatura risorse di progetto"
+    name: "Mappatura risorse multimodale"
     depends_on: [context_check]
     action: invoke_skill
     skill: context-mapper
     description: |
-      Invoca la skill `context-mapper.yaml` per scansionare le risorse
-      disponibili nel workspace: file .md, codice sorgente, immagini,
-      video, PDF, file di configurazione.
-      
-      Output atteso: una lista strutturata di risorse con tipo e rilevanza.
+      Invoca context-mapper per scansionare TUTTE le risorse disponibili.
+
+      MODALITÀ MULTIMODALE — il mapper processa:
+      - Testo:   .md, .txt, .pdf  → legge e riassume
+      - Codice:  .ts, .js, .py, .php → estrae struttura, funzioni, tipi
+      - Config:  .json, .yaml, .env  → legge chiavi e dipendenze
+      - Immagini: .png, .jpg, .svg   → nota presenza, nome, cartella
+      - Video:   .mp4, .mov          → nota presenza
+      - Repo remoti: se URL GitHub nel prompt → legge struttura root
+
+      Ogni risorsa viene valutata per rilevanza rispetto al domain_slug.
     output:
       - resource_map: "{{ context_mapper.output }}"
 
 # ==============================================================
-# STEP 4 — GENERAZIONE FILE .MD TEMPORANEO
+# STEP 4 — GENERAZIONE SET COMPLETO 12 FILE .MD
 # ==============================================================
-  - id: generate_temp_md
-    name: "Generazione file .md temporaneo di progetto"
+  - id: generate_file_set
+    name: "Generazione set completo file .md di progetto"
     depends_on: [map_resources]
-    action: generate_file
-    output_path: "{{ output_folder }}/{{ project_slug }}-temp.md"
-    template_ref: "{{ project_template_ref }}"
+    action: generate_file_set
+    output_folder: "{{ output_folder }}"
+    templates_ref: "{{ file_set_ref }}"
     description: |
-      Il modello genera il file .md temporaneo di progetto.
-      
-      REGOLE FONDAMENTALI di generazione:
-      
-      1. PRIMA di tutto: mappa iniziale del progetto (struttura, flusso, dipendenze)
-      2. Il file deve essere leggibile DAL MODELLO STESSO — non necessariamente
-         da un umano. Può usare stringhe compresse, token-friendly, notazioni
-         simboliche se accelerano la comprensione interna.
-      3. Il contesto guida il formato:
-         - DESIGN → wireframe testuale, componenti UI, stati
-         - SVILUPPO → architettura, endpoint, tipi di dati, flussi
-         - VENDITA/BUSINESS → funnel, KPI, vincoli economici, rischi
-         - TEMPO/PLANNING → milestone, dipendenze, blocchi critici
-      4. Include sempre sezioni: SCOPE, RISORSE, VINCOLI, ANTI_PATTERNS, DOMANDE_APERTE
-      5. Continua a chiedersi internamente: "Questo ha senso?"
-         Se una sezione non ha senso, la segnala con [?] e prosegue.
-    
+      Crea la cartella output e genera tutti i 12 file .md del set.
+
+      CARTELLA: new-ideas/{domain_slug}/{project_name_slug}/
+
+      FILE DA GENERARE (tutti obbligatori, adattati al contesto):
+        00_INDEX.md         → indice del set (generato per ultimo)
+        01_GOAL.md          → obiettivo primario, vision, perché esiste
+        02_PRODUCT.md       → cosa fa, funzioni core, moduli, MVP vs full
+        03_NEXT_STEPS.md    → prossimi passi concreti, ordinati per priorità
+        04_ELEMENTS.md      → elementi del sistema (pagine, sezioni, entità)
+        05_COMPONENTS.md    → componenti riusabili, pattern, librerie, design tokens
+        06_PRICE.md         → pricing del prodotto/servizio, tier, modello commerciale
+        07_BUDGET.md        → costi di produzione, strumenti, infrastruttura, tempo
+        08_LIMITS.md        → limiti tecnici, vincoli, cose da NON fare, anti-pattern
+        09_AGENTS.md        → agenti AI o ruoli umani, responsabilità, orchestrazione
+        10_ERROR.md         → errori possibili, edge case, failure mode, recovery
+        11_INTERPOLATION.md → connessioni, dipendenze, flussi dati, integrazioni
+        12_ASKED.md         → domande aperte, assunzioni non verificate, [OPEN]
+
+      REGOLE GENERAZIONE:
+      1. Ogni file usa l'intestazione standard di prompts/project-template.md
+      2. Il contenuto è adattato al domain_slug classificato
+      3. Il modello usa il formato più veloce per sé stesso:
+         stringhe compresse, simboli, frecce, notazioni token-friendly
+      4. Ogni file contiene [[wikilink]] verso gli altri file del set
+      5. Se una sezione manca di contesto → scrive N/A + motivazione + [OPEN]
+      6. Nessuna duplicazione: se contenuto è già in altro file → vedi [[file]]
     internal_monologue:
       enabled: true
+      check_every_file: true
       directive: |
-        Durante la generazione il modello deve tenere attivo un loop interno:
-        → "Questo è coerente con il prompt originale?"
-        → "Sto aggiungendo complessità inutile?"
-        → "Manca qualcosa di critico?"
-        Se la risposta a una di queste è sì, corregge inline prima di continuare.
+        Prima di passare al file successivo:
+        → Il file appena scritto è coerente con 01_GOAL.md?
+        → Sto contraddicendo qualcosa in un file precedente?
+        → I [[wikilink]] puntano a file che esistono nel set?
+        Se sì a qualsiasi problema → corregge inline prima di continuare.
 
 # ==============================================================
 # STEP 5 — PROMPT NEGATIVO DI AUTO-VERIFICA
 # ==============================================================
   - id: negative_verification
     name: "Auto-verifica con prompt negativo"
-    depends_on: [generate_temp_md]
+    depends_on: [generate_file_set]
     action: self_verify
     prompt_ref: "{{ negative_prompt_ref }}"
     description: |
-      Il modello carica il prompt negativo da `negative-verification.md`
-      e lo applica al file .md appena generato.
-      
-      Il prompt negativo parte dall'assunto che IL MODELLO HA SBAGLIATO.
-      Il modello deve:
-      - Trovare contraddizioni con il prompt utente originale
-      - Trovare assunzioni non dichiarate
-      - Valutare l'impatto su: vendita, tempo, sviluppo, risorse, vita dell'utente
-      - Dimostrare che ogni sezione del .md è giustificata
-      
-      Se trovate contraddizioni: corregge il file .md e rigenera le sezioni invalide.
-      Se tutto regge: conferma con [VERIFICATO] e prosegue.
-    
+      Applica il prompt negativo sull'intero file set generato.
+      Parte dall'assunto che IL MODELLO HA SBAGLIATO.
+
+      Verifica ogni file del set su questi assi:
+      - Coerenza con il prompt utente originale (intero, dal .tmp)
+      - Consistenza interna cross-file tra tutti i 12 documenti
+      - Fattibilità delle risorse dichiarate
+      - Impatto reale (tempo, vendita, sviluppo, vita dell'utente)
+      - Anti-pattern violati
+      - File con N/A non giustificato
+      - Wikilink che puntano a file inesistenti
+
+      Se trova errori → corregge il file incriminato e loga [CORRECTION].
+      Se tutto regge → marca [RITROSO-VERIFIED] sull'intera cartella.
     inject_original_prompt: true
-    inject_generated_md: true
+    inject_full_file_set: true
     verification_axes:
       - coherence_with_prompt
+      - cross_file_consistency
       - logical_consistency
       - resource_feasibility
       - time_impact
       - business_impact
       - anti_pattern_violations
       - missing_critical_sections
+      - wikilinks_validity
 
 # ==============================================================
 # STEP 6 — OUTPUT FINALE
@@ -200,17 +267,14 @@ steps:
     depends_on: [negative_verification]
     action: finalize
     description: |
-      Produce l'output finale dopo la verifica.
-      Il file .md in `new-ideas/` viene marcato come [RITROSO-VERIFIED].
-      Viene pulito il file temporaneo del prompt.
-      
-      L'output include:
-      1. Il file .md di progetto validato
-      2. Un riepilogo delle correzioni apportate durante la verifica (se ce ne sono)
-      3. Le domande aperte non risolte segnalate con [OPEN]
-    
+      Finalizza l'output:
+      1. Aggiunge [RITROSO-VERIFIED] all'intestazione di ogni file del set
+      2. Genera 00_INDEX.md con lista file + conteggio correzioni + domande aperte
+      3. Pulisce .ritroso_prompt_cache.tmp
+      4. Restituisce il percorso della cartella generata
+    generate_index: true
+    index_file: "00_INDEX.md"
     cleanup:
       - "{{ temp_prompt_file }}"
-    
     mark_verified: true
     verified_tag: "[RITROSO-VERIFIED]"
