@@ -1,0 +1,216 @@
+# ==============================================================
+# SKILL: ritroso.yaml
+# Sistema di ragionamento contestuale con auto-verifica retroattiva
+# ==============================================================
+
+name: ritroso
+version: "1.0.0"
+description: |
+  Skill di ragionamento contestuale per LLM.
+  Il modello genera un file .md temporaneo di progetto,
+  poi si auto-verifica con un prompt negativo prima di produrre output finale.
+author: Domenico Fusto
+tags: [reasoning, context, self-verification, project-planning, llm-skill]
+
+# --------------------------------------------------------------
+# DIPENDENZE DA ALTRE SKILL
+# --------------------------------------------------------------
+uses:
+  - skills/context-mapper.yaml
+
+# --------------------------------------------------------------
+# VARIABILI GLOBALI
+# --------------------------------------------------------------
+variables:
+  output_folder: "new-ideas"
+  temp_prompt_file: ".ritroso_prompt_cache.tmp"
+  temp_project_file: ".ritroso_project_temp.md"
+  negative_prompt_ref: "prompts/negative-verification.md"
+  project_template_ref: "prompts/project-template.md"
+
+# ==============================================================
+# STEP 1 — RICEZIONE PROMPT UTENTE
+# ==============================================================
+steps:
+  - id: receive_prompt
+    name: "Ricezione e salvataggio prompt utente"
+    action: capture_input
+    description: |
+      Il modello riceve il prompt dell'utente.
+      Lo salva immediatamente nel file temporaneo `temp_prompt_file`
+      senza alterarlo, correggere o sintetizzare.
+      Il prompt viene conservato INTERO per il confronto finale.
+    save_to: "{{ temp_prompt_file }}"
+    output:
+      - raw_prompt: "{{ input }}"
+
+# ==============================================================
+# STEP 2 — VERIFICA CONTESTO
+# ==============================================================
+  - id: context_check
+    name: "Verifica completezza contesto"
+    depends_on: [receive_prompt]
+    action: evaluate
+    description: |
+      Il modello analizza il prompt ricevuto e valuta se ha
+      abbastanza informazioni per costruire una mappa di progetto coerente.
+      
+      Domande interne che il modello DEVE farsi:
+      - Conosco il dominio? (dev, design, vendita, logistica, tempo...)
+      - Conosco i limiti? (tecnologie escluse, vincoli di budget, scadenze)
+      - Conosco le cose da NON fare?
+      - Conosco le dipendenze o integrazioni richieste?
+      - Ho già risorse disponibili da mappare? (file .md, codice, immagini, PDF)
+    
+    evaluation_criteria:
+      - domain_identified: bool
+      - constraints_known: bool
+      - anti_patterns_known: bool
+      - resources_available: bool
+
+    on_incomplete:
+      action: ask_user
+      next_step: context_expansion_question
+
+    on_complete:
+      next_step: map_resources
+
+# ==============================================================
+# STEP 2.5 — DOMANDA DI ESPANSIONE CONTESTO
+# ==============================================================
+  - id: context_expansion_question
+    name: "Domanda contestuale al utente"
+    action: generate_question
+    description: |
+      Se il contesto è insufficiente, il modello genera UNA SOLA domanda
+      focalizzata sulla dimensione più critica mancante.
+      
+      La domanda deve riguardare ESCLUSIVAMENTE:
+      - Funzioni richieste e funzioni escluse
+      - Limiti tecnici, economici o temporali
+      - Dipendenze note e vincoli architetturali
+      - Cose da NON fare nel progetto
+      
+      NON chiedere mai di stile grafico o preferenze estetiche in questo step.
+      NON fare multiple domande. UNA sola, la più bloccante.
+    
+    prompt_template: |
+      Per costruire una mappa di progetto coerente ho bisogno di capire meglio
+      un aspetto critico del tuo progetto:
+      
+      {{ generated_question }}
+      
+      (Rispondi anche brevemente — mi serve solo per impostare i vincoli corretti.)
+    
+    after_answer:
+      action: merge_context
+      next_step: map_resources
+
+# ==============================================================
+# STEP 3 — MAPPATURA RISORSE ESISTENTI
+# ==============================================================
+  - id: map_resources
+    name: "Mappatura risorse di progetto"
+    depends_on: [context_check]
+    action: invoke_skill
+    skill: context-mapper
+    description: |
+      Invoca la skill `context-mapper.yaml` per scansionare le risorse
+      disponibili nel workspace: file .md, codice sorgente, immagini,
+      video, PDF, file di configurazione.
+      
+      Output atteso: una lista strutturata di risorse con tipo e rilevanza.
+    output:
+      - resource_map: "{{ context_mapper.output }}"
+
+# ==============================================================
+# STEP 4 — GENERAZIONE FILE .MD TEMPORANEO
+# ==============================================================
+  - id: generate_temp_md
+    name: "Generazione file .md temporaneo di progetto"
+    depends_on: [map_resources]
+    action: generate_file
+    output_path: "{{ output_folder }}/{{ project_slug }}-temp.md"
+    template_ref: "{{ project_template_ref }}"
+    description: |
+      Il modello genera il file .md temporaneo di progetto.
+      
+      REGOLE FONDAMENTALI di generazione:
+      
+      1. PRIMA di tutto: mappa iniziale del progetto (struttura, flusso, dipendenze)
+      2. Il file deve essere leggibile DAL MODELLO STESSO — non necessariamente
+         da un umano. Può usare stringhe compresse, token-friendly, notazioni
+         simboliche se accelerano la comprensione interna.
+      3. Il contesto guida il formato:
+         - DESIGN → wireframe testuale, componenti UI, stati
+         - SVILUPPO → architettura, endpoint, tipi di dati, flussi
+         - VENDITA/BUSINESS → funnel, KPI, vincoli economici, rischi
+         - TEMPO/PLANNING → milestone, dipendenze, blocchi critici
+      4. Include sempre sezioni: SCOPE, RISORSE, VINCOLI, ANTI_PATTERNS, DOMANDE_APERTE
+      5. Continua a chiedersi internamente: "Questo ha senso?"
+         Se una sezione non ha senso, la segnala con [?] e prosegue.
+    
+    internal_monologue:
+      enabled: true
+      directive: |
+        Durante la generazione il modello deve tenere attivo un loop interno:
+        → "Questo è coerente con il prompt originale?"
+        → "Sto aggiungendo complessità inutile?"
+        → "Manca qualcosa di critico?"
+        Se la risposta a una di queste è sì, corregge inline prima di continuare.
+
+# ==============================================================
+# STEP 5 — PROMPT NEGATIVO DI AUTO-VERIFICA
+# ==============================================================
+  - id: negative_verification
+    name: "Auto-verifica con prompt negativo"
+    depends_on: [generate_temp_md]
+    action: self_verify
+    prompt_ref: "{{ negative_prompt_ref }}"
+    description: |
+      Il modello carica il prompt negativo da `negative-verification.md`
+      e lo applica al file .md appena generato.
+      
+      Il prompt negativo parte dall'assunto che IL MODELLO HA SBAGLIATO.
+      Il modello deve:
+      - Trovare contraddizioni con il prompt utente originale
+      - Trovare assunzioni non dichiarate
+      - Valutare l'impatto su: vendita, tempo, sviluppo, risorse, vita dell'utente
+      - Dimostrare che ogni sezione del .md è giustificata
+      
+      Se trovate contraddizioni: corregge il file .md e rigenera le sezioni invalide.
+      Se tutto regge: conferma con [VERIFICATO] e prosegue.
+    
+    inject_original_prompt: true
+    inject_generated_md: true
+    verification_axes:
+      - coherence_with_prompt
+      - logical_consistency
+      - resource_feasibility
+      - time_impact
+      - business_impact
+      - anti_pattern_violations
+      - missing_critical_sections
+
+# ==============================================================
+# STEP 6 — OUTPUT FINALE
+# ==============================================================
+  - id: final_output
+    name: "Output finale validato"
+    depends_on: [negative_verification]
+    action: finalize
+    description: |
+      Produce l'output finale dopo la verifica.
+      Il file .md in `new-ideas/` viene marcato come [RITROSO-VERIFIED].
+      Viene pulito il file temporaneo del prompt.
+      
+      L'output include:
+      1. Il file .md di progetto validato
+      2. Un riepilogo delle correzioni apportate durante la verifica (se ce ne sono)
+      3. Le domande aperte non risolte segnalate con [OPEN]
+    
+    cleanup:
+      - "{{ temp_prompt_file }}"
+    
+    mark_verified: true
+    verified_tag: "[RITROSO-VERIFIED]"

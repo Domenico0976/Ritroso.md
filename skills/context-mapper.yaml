@@ -1,0 +1,110 @@
+# ==============================================================
+# SKILL: context-mapper.yaml
+# Mappatura automatica delle risorse di progetto disponibili
+# ==============================================================
+
+name: context-mapper
+version: "1.0.0"
+description: |
+  Skill ausiliaria di Ritroso.md.
+  Scansiona il workspace per identificare tutte le risorse utili
+  al modello per ampliare il contesto del progetto.
+author: Domenico Fusto
+tags: [context, resources, mapping, files, llm-skill]
+
+# --------------------------------------------------------------
+# CONFIGURAZIONE SCANSIONE
+# --------------------------------------------------------------
+config:
+  scan_depth: 3                  # Livelli di directory da scansionare
+  ignore_folders:
+    - node_modules
+    - .git
+    - dist
+    - build
+    - .next
+    - __pycache__
+  ignore_files:
+    - "*.lock"
+    - "*.log"
+    - ".DS_Store"
+
+# --------------------------------------------------------------
+# TIPI DI RISORSA E PESO CONTESTUALE
+# --------------------------------------------------------------
+resource_types:
+  - type: markdown
+    extensions: [".md", ".mdx"]
+    context_weight: HIGH
+    action: read_and_summarize
+    description: "Documentazione, note, specifiche esistenti"
+
+  - type: source_code
+    extensions: [".ts", ".tsx", ".js", ".jsx", ".py", ".php", ".css", ".scss"]
+    context_weight: HIGH
+    action: extract_structure
+    description: "Struttura funzioni, tipi, componenti, API"
+
+  - type: config
+    extensions: [".json", ".yaml", ".yml", ".toml", ".env.example"]
+    context_weight: MEDIUM
+    action: read_keys
+    description: "Configurazioni, dipendenze, variabili d'ambiente"
+
+  - type: image
+    extensions: [".png", ".jpg", ".jpeg", ".svg", ".webp"]
+    context_weight: MEDIUM
+    action: note_presence
+    description: "Asset visivi, screenshot, wireframe"
+
+  - type: document
+    extensions: [".pdf"]
+    context_weight: MEDIUM
+    action: note_presence_request_summary
+    description: "Documenti di specifiche, contratti, brief"
+
+  - type: video
+    extensions: [".mp4", ".mov", ".avi", ".webm"]
+    context_weight: LOW
+    action: note_presence
+    description: "Demo, tutorial, registrazioni"
+
+  - type: data
+    extensions: [".csv", ".xlsx", ".sql"]
+    context_weight: MEDIUM
+    action: read_schema
+    description: "Struttura dati, database, fogli di calcolo"
+
+# --------------------------------------------------------------
+# OUTPUT STRUTTURA
+# --------------------------------------------------------------
+output:
+  format: structured_map
+  sections:
+    - name: "RISORSE_TROVATE"
+      content: "Lista di tutte le risorse con tipo, path e rilevanza stimata"
+    
+    - name: "RISORSE_CRITICHE"
+      content: "Top 5 risorse più rilevanti per il contesto del prompt"
+    
+    - name: "GAPS_CONTESTO"
+      content: "Cosa manca: risorse che ci si aspetterebbe ma non ci sono"
+    
+    - name: "RACCOMANDAZIONI"
+      content: "Suggerimenti al modello su cosa leggere prima di generare"
+
+# --------------------------------------------------------------
+# LOGICA INTERNA
+# --------------------------------------------------------------
+internal_logic:
+  description: |
+    Il mapper non si limita a listare file — ragiona sulla rilevanza.
+    Per ogni risorsa valuta:
+    - È pertinente al dominio del prompt? (dev, design, business...)
+    - Contiene vincoli o requisiti già definiti?
+    - Contraddice qualcosa nel prompt utente?
+    - Aggiunge contesto che il modello non aveva?
+    
+    Le risorse con context_weight=HIGH vengono processate per prime.
+    Il mapper produce un "quadro iniziale" che viene passato alla skill ritroso
+    come input per la generazione del file .md.
