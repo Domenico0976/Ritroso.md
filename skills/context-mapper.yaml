@@ -1,22 +1,24 @@
 # ==============================================================
 # SKILL: context-mapper.yaml
-# Mappatura automatica delle risorse di progetto disponibili
+# Automatic mapping of available project resources
 # ==============================================================
 
 name: context-mapper
-version: "1.0.0"
+version: "2.0.0"
 description: |
-  Skill ausiliaria di Ritroso.md.
-  Scansiona il workspace per identificare tutte le risorse utili
-  al modello per ampliare il contesto del progetto.
+  Auxiliary skill for Ritroso.md.
+  Scans the workspace to identify all resources useful
+  to the model for expanding the project context.
+  In v2: also detects context gaps and feeds them to
+  the inference loop before generation.
 author: Domenico Fusto
-tags: [context, resources, mapping, files, llm-skill]
+tags: [context, resources, mapping, files, llm-skill, inference, gaps]
 
 # --------------------------------------------------------------
-# CONFIGURAZIONE SCANSIONE
+# SCAN CONFIGURATION
 # --------------------------------------------------------------
 config:
-  scan_depth: 3                  # Livelli di directory da scansionare
+  scan_depth: 3
   ignore_folders:
     - node_modules
     - .git
@@ -30,81 +32,101 @@ config:
     - ".DS_Store"
 
 # --------------------------------------------------------------
-# TIPI DI RISORSA E PESO CONTESTUALE
+# RESOURCE TYPES AND CONTEXT WEIGHT
 # --------------------------------------------------------------
 resource_types:
   - type: markdown
     extensions: [".md", ".mdx"]
     context_weight: HIGH
     action: read_and_summarize
-    description: "Documentazione, note, specifiche esistenti"
+    description: "Documentation, notes, existing specifications"
 
   - type: source_code
     extensions: [".ts", ".tsx", ".js", ".jsx", ".py", ".php", ".css", ".scss"]
     context_weight: HIGH
     action: extract_structure
-    description: "Struttura funzioni, tipi, componenti, API"
+    description: "Function structure, types, components, API"
 
   - type: config
     extensions: [".json", ".yaml", ".yml", ".toml", ".env.example"]
     context_weight: MEDIUM
     action: read_keys
-    description: "Configurazioni, dipendenze, variabili d'ambiente"
+    description: "Configurations, dependencies, environment variables"
 
   - type: image
     extensions: [".png", ".jpg", ".jpeg", ".svg", ".webp"]
     context_weight: MEDIUM
     action: note_presence
-    description: "Asset visivi, screenshot, wireframe"
+    description: "Visual assets, screenshots, wireframes"
 
   - type: document
     extensions: [".pdf"]
     context_weight: MEDIUM
     action: note_presence_request_summary
-    description: "Documenti di specifiche, contratti, brief"
+    description: "Specification documents, contracts, briefs"
 
   - type: video
     extensions: [".mp4", ".mov", ".avi", ".webm"]
     context_weight: LOW
     action: note_presence
-    description: "Demo, tutorial, registrazioni"
+    description: "Demos, tutorials, recordings"
 
   - type: data
     extensions: [".csv", ".xlsx", ".sql"]
     context_weight: MEDIUM
     action: read_schema
-    description: "Struttura dati, database, fogli di calcolo"
+    description: "Data structures, database, spreadsheets"
 
 # --------------------------------------------------------------
-# OUTPUT STRUTTURA
+# OUTPUT STRUCTURE
 # --------------------------------------------------------------
 output:
   format: structured_map
   sections:
-    - name: "RISORSE_TROVATE"
-      content: "Lista di tutte le risorse con tipo, path e rilevanza stimata"
-    
-    - name: "RISORSE_CRITICHE"
-      content: "Top 5 risorse più rilevanti per il contesto del prompt"
-    
-    - name: "GAPS_CONTESTO"
-      content: "Cosa manca: risorse che ci si aspetterebbe ma non ci sono"
-    
-    - name: "RACCOMANDAZIONI"
-      content: "Suggerimenti al modello su cosa leggere prima di generare"
+    - name: "RESOURCES_FOUND"
+      content: "List of all resources with type, path and estimated relevance"
+
+    - name: "CRITICAL_RESOURCES"
+      content: "Top 5 most relevant resources for the prompt context"
+
+    - name: "CONTEXT_GAPS"
+      content: "What is missing: resources expected but not present"
+
+    - name: "INFERRED_SIGNALS"
+      content: "What the model can infer from existing resources (even without explicit statements)"
+
+    - name: "RECOMMENDATIONS"
+      content: "Suggestions to the model on what to read before generating"
 
 # --------------------------------------------------------------
-# LOGICA INTERNA
+# INTERNAL LOGIC
 # --------------------------------------------------------------
 internal_logic:
   description: |
-    Il mapper non si limita a listare file — ragiona sulla rilevanza.
-    Per ogni risorsa valuta:
-    - È pertinente al dominio del prompt? (dev, design, business...)
-    - Contiene vincoli o requisiti già definiti?
-    - Contraddice qualcosa nel prompt utente?
-    - Aggiunge contesto che il modello non aveva?
-    
-    Le risorse con context_weight=HIGH vengono processate per prime.
-    Il mapper produce un "quadro iniziale" che viene passato alla skill ritroso
-    come input per la generazione del file .md.
+    The mapper does not just list files — it reasons about relevance.
+    For each resource it evaluates:
+    - Is it relevant to the prompt domain? (dev, design, business...)
+    - Does it contain already-defined constraints or requirements?
+    - Does it contradict something in the user prompt?
+    - Does it add context the model did not have?
+
+    Resources with context_weight=HIGH are processed first.
+    The mapper produces an "initial picture" that is passed to the ritroso skill
+    as input for generating the .md file.
+
+  gap_detection:
+    description: |
+      After mapping resources, the mapper identifies GAPS:
+      dimensions that are expected for the domain but have no coverage.
+      These gaps are passed to the context-gap-questions protocol.
+    gap_types:
+      - type: goal_gap
+        description: "No file or signal defines WHY the project exists"
+      - type: constraint_gap
+        description: "No technical, economic or time limits declared"
+      - type: antipattern_gap
+        description: "No known failure modes or things-to-avoid defined"
+      - type: user_gap
+        description: "No user types, personas or actors defined"
+      - type: stack_gap
+        description: "No technology stack or architecture declared"

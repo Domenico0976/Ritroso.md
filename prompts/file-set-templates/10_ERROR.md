@@ -1,39 +1,52 @@
 # Template: 10_ERROR.md
 
-> Risponde a: COSA PUÒ ANDARE STORTO (errori, edge case, failure mode, recovery).
+> Answers: WHAT can go wrong?
+> Inference loop: receives question from 05_COMPONENTS, asks 08_LIMITS.
 
 ---
 
 ```markdown
 # 10_ERROR.md — {project_name}
-{intestazione_standard}
+{standard_header}
 
-## FAILURE MODE CRITICI
-<!-- Cosa può andare storto in modo bloccante -->
-{critical_failures}
+## FAILURE MODE MAP
+<!-- All known failure modes with probability and impact -->
+<!-- Format: Failure · Trigger · Probability (H/M/L) · Impact (H/M/L) · Recovery -->
+{failure_mode_map}
 
-## EDGE CASE
-<!-- Situazioni limite che il sistema deve gestire -->
-{edge_cases}
+## SINGLE POINTS OF FAILURE
+<!-- Components or agents whose failure breaks the entire system -->
+<!-- [INF] if identified during inference loop with 05_COMPONENTS -->
+{single_points_of_failure}
 
-## ERRORI UTENTE COMUNI
-<!-- Cosa fa l'utente che potrebbe rompere il flusso -->
-{user_errors}
+## CASCADING FAILURES
+<!-- If X fails, what else fails as a consequence? -->
+{cascading_failures}
 
-## ERRORI DI SISTEMA
-<!-- Race condition, timeout, stato inconsistente, OOM, drift agente -->
-{system_errors}
+## RECOVERY PROTOCOLS
+<!-- How to recover from each critical failure mode -->
+{recovery_protocols}
 
-## STRATEGIE DI RECOVERY
-<!-- Come il sistema si riprende da ogni failure mode -->
-{recovery_strategies}
+## SILENT FAILURES
+<!-- Failures that do not generate errors but corrupt outputs -->
+{silent_failures}
 
-## MONITORING
-<!-- Come si rilevano gli errori in produzione -->
-{monitoring}
+## INFERENCE QUESTION → 08_LIMITS
+<!-- Pre-generation: asked to 08_LIMITS before this file was written -->
+> "Given these failure modes, what must be explicitly prohibited
+>  or constrained to prevent systemic failure?"
+>
+> Answer received: {inference_answer_from_08}
 
-## DIPENDENZE
-→ vedi [[08_LIMITS]] per i vincoli che causano errori
-→ vedi [[09_AGENTS]] per gli agenti che gestiscono gli errori
-→ vedi [[12_ASKED]] per gli errori ancora da analizzare
+## INFERENCE ANSWER ← 05_COMPONENTS
+<!-- Answer provided to 05_COMPONENTS during inference loop -->
+> Question received: "Which component is the most likely single point of failure?
+>  What breaks first when this component fails?"
+> Answer given: {inference_answer_to_05}
+
+## DEPENDENCIES
+→ see [[05_COMPONENTS]] for the components that can fail
+→ see [[08_LIMITS]] for limits derived from these failure modes
+→ see [[09_AGENTS]] for who handles recovery
+→ see [[12_ASKED]] for unresolved failure scenarios
 ```

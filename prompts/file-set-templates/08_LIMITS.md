@@ -1,35 +1,52 @@
 # Template: 08_LIMITS.md
 
-> Risponde a: COSA NON SI PUÒ O NON DEVE FARE (limiti, vincoli, anti-pattern).
+> Answers: WHAT cannot / must not be done?
+> Inference loop: receives question from 10_ERROR, asks 09_AGENTS.
 
 ---
 
 ```markdown
 # 08_LIMITS.md — {project_name}
-{intestazione_standard}
+{standard_header}
 
-## LIMITI TECNICI
-<!-- Cosa il sistema NON può fare per ragioni tecniche -->
-{tech_limits}
+## HARD LIMITS
+<!-- Absolute constraints — violating these breaks the system or the project -->
+<!-- Format: Limit · Category · Reason · Consequence if violated -->
+{hard_limits}
 
-## VINCOLI DICHIARATI
-<!-- Limitazioni esplicite dall'utente: tech escluse, piattaforme, regole -->
-{declared_constraints}
+## SOFT LIMITS
+<!-- Boundaries that should not be crossed but have workarounds -->
+{soft_limits}
 
-## ANTI-PATTERN
-<!-- Soluzioni da evitare anche se sembrano ovvie in questo contesto -->
+## ANTI-PATTERNS
+<!-- Approaches that have failed or must be avoided -->
+<!-- [INF] if derived from failure analysis in inference loop -->
 {anti_patterns}
 
-## COSE DA NON FARE
-<!-- Lista esplicita: scelte sbagliate per questo progetto specifico -->
-{dont_do}
+## REGULATORY / LEGAL
+<!-- Compliance requirements, GDPR, licenses, contracts -->
+{regulatory_limits}
 
-## VINCOLI LEGALI / COMPLIANCE
-<!-- GDPR, copyright, licenze, normative di settore -->
-{legal_constraints}
+## SCOPE LIMITS
+<!-- What is out of scope for THIS version -->
+{scope_limits}
 
-## DIPENDENZE
-→ vedi [[10_ERROR]] per i failure mode derivati da questi limiti
-→ vedi [[03_NEXT_STEPS]] per come aggirarli
-→ vedi [[12_ASKED]] per i limiti ancora da chiarire
+## INFERENCE QUESTION → 09_AGENTS
+<!-- Pre-generation: asked to 09_AGENTS before this file was written -->
+> "Who is responsible for monitoring these limits and responding to failures?
+>  Is there an agent (AI or human) capable of doing this with current resources?"
+>
+> Answer received: {inference_answer_from_09}
+
+## INFERENCE ANSWER ← 10_ERROR
+<!-- Answer provided to 10_ERROR during inference loop -->
+> Question received: "Given these failure modes, what must be explicitly prohibited
+>  or constrained to prevent systemic failure?"
+> Answer given: {inference_answer_to_10}
+
+## DEPENDENCIES
+→ see [[10_ERROR]] for failure modes that drive these limits
+→ see [[09_AGENTS]] for who enforces these limits
+→ see [[03_NEXT_STEPS]] for limit-related actions
+→ see [[12_ASKED]] for unresolved limit questions
 ```

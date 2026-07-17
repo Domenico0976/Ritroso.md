@@ -1,36 +1,51 @@
 # Template: 05_COMPONENTS.md
 
-> Risponde a: COME È COSTRUITO (componenti riusabili, pattern, token, librerie).
+> Answers: HOW is it built?
+> Inference loop: receives question from 04_ELEMENTS, asks 10_ERROR.
 
 ---
 
 ```markdown
 # 05_COMPONENTS.md — {project_name}
-{intestazione_standard}
+{standard_header}
 
-## COMPONENTI UI
-<!-- Lista componenti riusabili con varianti e props principali -->
-{ui_components}
+## COMPONENT ARCHITECTURE
+<!-- Overall architecture pattern and rationale -->
+{architecture_overview}
 
-## DESIGN TOKENS
-<!-- Colori, tipografia, spacing, shadow, border-radius in uso -->
-{design_tokens}
+## COMPONENT LIST
+<!-- All technical components with type and responsibility -->
+<!-- Format: Component · Type · Responsibility · Shared? -->
+{component_list}
 
-## PATTERN TECNICI
-<!-- Pattern architetturali: HOC, Context, hooks, provider, state machine... -->
-{tech_patterns}
+## SHARED COMPONENTS
+<!-- Components used by more than 50% of elements -- highest leverage -->
+<!-- [INF] if identified by inference loop -->
+{shared_components}
 
-## LIBRERIE / DIPENDENZE
-<!-- Stack UI, librerie componenti, utility CSS, tool di build -->
-{libraries}
+## TECH STACK
+<!-- Technologies, frameworks, libraries, services -->
+{tech_stack}
 
-## ESISTENTI vs DA CREARE
-ESISTENTI: {existing}
-DA CREARE: {to_create}
-DA ADATTARE: {to_adapt}
+## INTERFACES
+<!-- How components talk to each other: API, events, shared state -->
+{interfaces}
 
-## DIPENDENZE
-→ vedi [[04_ELEMENTS]] per dove vengono usati
-→ vedi [[08_LIMITS]] per vincoli tecnici su librerie
-→ vedi [[11_INTERPOLATION]] per connessioni tra componenti
+## INFERENCE QUESTION → 10_ERROR
+<!-- Pre-generation: asked to 10_ERROR before this file was written -->
+> "Which component is the most likely single point of failure?
+>  What breaks first when this component fails?"
+>
+> Answer received: {inference_answer_from_10}
+
+## INFERENCE ANSWER ← 04_ELEMENTS
+<!-- Answer provided to 04_ELEMENTS during inference loop -->
+> Question received: "Which components are needed? Are any used by more than half the elements?"
+> Answer given: {inference_answer_to_04}
+
+## DEPENDENCIES
+→ see [[04_ELEMENTS]] for the elements these components implement
+→ see [[10_ERROR]] for failure modes of these components
+→ see [[07_BUDGET]] for the cost of operating these components
+→ see [[11_INTERPOLATION]] for how components interconnect
 ```

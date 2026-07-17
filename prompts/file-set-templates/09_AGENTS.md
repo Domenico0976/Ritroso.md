@@ -1,35 +1,52 @@
 # Template: 09_AGENTS.md
 
-> Risponde a: CHI FA COSA (agenti AI, ruoli umani, orchestrazione, handoff).
+> Answers: WHO does what (AI + humans)?
+> Inference loop: receives question from 08_LIMITS, asks 07_BUDGET.
 
 ---
 
 ```markdown
 # 09_AGENTS.md — {project_name}
-{intestazione_standard}
+{standard_header}
 
-## AGENTI AI COINVOLTI
-<!-- Nome agente | modello | ruolo | quando viene attivato -->
-{ai_agents}
+## AGENT MAP
+<!-- All actors in the system: human roles + AI agents -->
+<!-- Format: Agent · Type (human/AI) · Responsibility · Scope -->
+{agent_map}
 
-## RUOLI UMANI
-<!-- Chi fa cosa nel progetto: dev, designer, PM, utente finale -->
-{human_roles}
+## AGENT RESPONSIBILITIES
+<!-- What each agent owns, decides, executes -->
+{agent_responsibilities}
 
-## ORCHESTRAZIONE
-<!-- Come si coordinano agenti e umani. Chi ha priorità. Chi può bloccare. -->
-{orchestration}
+## HANDOFF PROTOCOL
+<!-- How tasks flow between agents: triggers, formats, acceptance criteria -->
+{handoff_protocol}
 
-## MODALITÀ OPERATIVE
-<!-- Se il sistema ha modalità diverse (es. Explore, Clarify, Orchestrate...) -->
-{operative_modes}
+## AGENT LIMITS
+<!-- What each agent cannot or must not do -->
+<!-- [INF] if derived from inference loop answer to 08_LIMITS -->
+{agent_limits}
 
-## HANDOFF
-<!-- Quando e come passa il controllo tra agenti e ruoli -->
-{handoff}
+## ESCALATION PATHS
+<!-- When an agent fails or is blocked: who takes over? -->
+{escalation_paths}
 
-## DIPENDENZE
-→ vedi [[11_INTERPOLATION]] per le connessioni tra agenti
-→ vedi [[10_ERROR]] per i failure mode degli agenti
-→ vedi [[08_LIMITS]] per i vincoli sugli agenti
+## INFERENCE QUESTION → 07_BUDGET
+<!-- Pre-generation: asked to 07_BUDGET before this file was written -->
+> "What is the real cost of operating these agents at the defined limits?
+>  Is there a scenario where the budget is exceeded by normal operations?"
+>
+> Answer received: {inference_answer_from_07}
+
+## INFERENCE ANSWER ← 08_LIMITS
+<!-- Answer provided to 08_LIMITS during inference loop -->
+> Question received: "Who is responsible for monitoring these limits and responding to failures?
+>  Is there an agent capable of doing this with current resources?"
+> Answer given: {inference_answer_to_08}
+
+## DEPENDENCIES
+→ see [[08_LIMITS]] for what constrains agent behavior
+→ see [[07_BUDGET]] for agent operation costs
+→ see [[11_INTERPOLATION]] for agent interaction flows
+→ see [[10_ERROR]] for agent failure modes
 ```

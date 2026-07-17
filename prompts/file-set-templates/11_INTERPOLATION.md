@@ -1,40 +1,56 @@
 # Template: 11_INTERPOLATION.md
 
-> Risponde a: COME TUTTO SI CONNETTE (dipendenze, flussi dati, integrazioni, grafo).
+> Answers: HOW does everything connect?
+> Inference loop: receives question from 03_NEXT_STEPS, asks 12_ASKED.
 
 ---
 
 ```markdown
 # 11_INTERPOLATION.md — {project_name}
-{intestazione_standard}
+{standard_header}
 
-## MAPPA CONNESSIONI
-<!-- Come si collegano moduli/elementi/agenti tra loro -->
-<!-- Formato: A → B (tipo_connessione) [direzione] -->
+## CONNECTION MAP
+<!-- How modules/elements/agents connect to each other -->
+<!-- Format: A → B (connection_type) [direction] -->
 {connection_map}
 
-## FLUSSI DI DATI
-<!-- Come i dati si muovono: input → transform → output -->
+## CRITICAL DEPENDENCY
+<!-- The single most critical dependency: if this breaks, what cascades? -->
+<!-- [INF] if derived from inference loop answer to 03_NEXT_STEPS -->
+{critical_dependency}
+
+## DATA FLOWS
+<!-- How data moves: input → transform → output -->
 {data_flows}
 
-## INTEGRAZIONI ESTERNE
-<!-- API terze parti, servizi, webhook, SDK -->
+## EXTERNAL INTEGRATIONS
+<!-- Third-party APIs, services, webhooks, SDKs -->
 {external_integrations}
 
-## DIPENDENZE CRITICHE
-<!-- Se X si rompe, cosa smette di funzionare? -->
-{critical_dependencies}
-
-## EVENTI / TRIGGER
-<!-- Cosa scatena cosa: user action → system reaction -->
+## EVENTS / TRIGGERS
+<!-- What triggers what: user action → system reaction -->
 {events_triggers}
 
-## GRAFO SEMPLIFICATO
-<!-- Versione testuale del knowledge graph del progetto -->
+## SIMPLIFIED GRAPH
+<!-- Text version of the project knowledge graph -->
 {simplified_graph}
 
-## DIPENDENZE
-→ vedi [[04_ELEMENTS]] per gli elementi collegati
-→ vedi [[09_AGENTS]] per i flussi tra agenti
-→ vedi [[10_ERROR]] per i failure mode nelle connessioni
+## INFERENCE QUESTION → 12_ASKED
+<!-- Pre-generation: asked to 12_ASKED before this file was written -->
+> "After this entire inference chain, what is the most important question
+>  that still has no answer and would most change the design if answered?"
+>
+> Answer received: {inference_answer_from_12}
+
+## INFERENCE ANSWER ← 03_NEXT_STEPS
+<!-- Answer provided to 03_NEXT_STEPS during inference loop -->
+> Question received: "What is the most critical dependency in the system?
+>  If this dependency breaks, what cascades?"
+> Answer given: {inference_answer_to_03}
+
+## DEPENDENCIES
+→ see [[04_ELEMENTS]] for connected elements
+→ see [[09_AGENTS]] for agent interaction flows
+→ see [[10_ERROR]] for failure modes in connections
+→ see [[05_COMPONENTS]] for component interfaces
 ```

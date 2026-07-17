@@ -1,42 +1,62 @@
 # Template: 12_ASKED.md
 
-> Il file più onesto del set.
-> Risponde a: COSA NON SAPPIAMO ANCORA (domande, assunzioni, conflitti, rimandati).
+> The most honest file in the set.
+> Answers: WHAT DO WE NOT KNOW YET (questions, assumptions, conflicts, deferred items).
+> Inference loop: closes the chain — answers the final question from 11_INTERPOLATION.
+> Also collects all [OPEN-INF-N] items from the inference loop.
 
 ---
 
 ```markdown
 # 12_ASKED.md — {project_name}
-{intestazione_standard}
+{standard_header}
 
-## DOMANDE APERTE [OPEN]
-<!-- Tutto ciò che il modello non sa con certezza -->
-<!-- Formato: [OPEN-N] domanda → impatto se non risposta -->
+## OPEN QUESTIONS [OPEN]
+<!-- Everything the model does not know with certainty -->
+<!-- Format: [OPEN-N] question → impact if unanswered -->
 {open_questions}
 
-## ASSUNZIONI NON VERIFICATE
-<!-- Cose assunte senza conferma esplicita dell'utente -->
-<!-- Formato: [ASSUME-N] assunzione → fonte (prompt/inference/default) -->
+## INFERENCE LOOP OPEN ITEMS
+<!-- All [OPEN-INF-N] items unresolved during the inference loop -->
+<!-- Format: [OPEN-INF-N] question → which files are affected -->
+{inference_open_items}
+
+## UNVERIFIED ASSUMPTIONS
+<!-- Things assumed without explicit user confirmation -->
+<!-- Format: [ASSUME-N] assumption → source (prompt/inference/default) -->
 {unverified_assumptions}
 
-## DECISIONI RIMANDATE
-<!-- Scelte che devono essere prese ma non ora -->
+## DEFERRED DECISIONS
+<!-- Choices that must be made but not now -->
 {deferred_decisions}
 
-## CONFLITTI RILEVATI
-<!-- Punti in cui due file del set si contraddicono -->
+## DETECTED CONFLICTS
+<!-- Points where two files in the set contradict each other -->
 {conflicts}
 
-## RICHIEDE INPUT UTENTE
-<!-- Lista pulita di ciò che solo l'utente può rispondere -->
+## REQUIRES USER INPUT
+<!-- Clean list of what only the user can answer -->
 {needs_user_input}
 
-## NOTE POST-VERIFICA
-<!-- Compilato dal prompt negativo: cosa è rimasto irrisolto dopo la verifica -->
+## MOST CRITICAL OPEN QUESTION
+<!-- The single question from the inference loop final answer -->
+<!-- [INF] — derived from 11_INTERPOLATION inference chain close -->
+> {most_critical_open_question}
+> Impact if unanswered: {impact}
+
+## POST-VERIFICATION NOTES
+<!-- Filled by the negative prompt: what remained unresolved after verification -->
 {post_verification_notes}
 
-## DIPENDENZE
-→ questo file è l'ultimo letto nel prompt negativo
-→ ogni [OPEN] non risolto rimane come [OPEN] nel file finale
-→ ogni conflitto trovato genera [CORRECTION] nel file corrispondente
+## INFERENCE ANSWER ← 11_INTERPOLATION
+<!-- Answer provided to 11_INTERPOLATION during inference loop -->
+> Question received: "What is the most important question that still has no answer
+>  and would most change the design if answered?"
+> Answer given: {inference_answer_to_11}
+
+## DEPENDENCIES
+→ this file is the last read in the negative prompt
+→ every [OPEN] unresolved remains as [OPEN] in the final file
+→ every conflict found generates [CORRECTION] in the corresponding file
+→ every [OPEN-INF-N] from inference loop is surfaced here
 ```

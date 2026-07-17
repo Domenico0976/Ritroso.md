@@ -1,32 +1,34 @@
 # Ritroso.md
 
-> Skill di ragionamento contestuale per LLM con generazione multimodale
-> di set completi di file `.md` e auto-verifica retroattiva.
+> Contextual reasoning skill for LLMs with multimodal generation of complete `.md` file sets and retroactive self-verification.
 
-## Cos'è
+## What It Is
 
-**Ritroso.md** è un framework di skill per modelli LLM che forza il modello a:
+**Ritroso.md** is a skill framework for LLM models that forces the model to:
 
-1. Classificare il tipo di progetto e creare una cartella dedicata
-2. Generare un **set completo di 13 file `.md`** come mappa strutturata del progetto
-3. Leggere ogni risorsa disponibile nel contesto in modo **multimodale** (testo, codice, immagini, PDF, repo GitHub)
-4. Sottoporsi a un **prompt negativo di auto-verifica** — il modello viene attaccato sul suo stesso output e deve difendersi con coerenza cross-file
+1. Classify the project type and create a dedicated output folder
+2. Generate a **complete set of 13 `.md` files** as a structured project map
+3. Read every available resource in context in a **multimodal** way (text, code, images, PDF, GitHub repos)
+4. Run an **inference loop**: each file actively interrogates the others to maximize cross-file coherence before generation
+5. Submit to a **negative self-verification prompt** — the model attacks its own output and must defend it with cross-file consistency
 
-Il nome "Ritroso" indica il movimento: **il modello va avanti, poi torna indietro a verificare**.
+The name "Ritroso" means the movement: **the model goes forward, then turns back to verify**.
 
 ---
 
-## Struttura
+## Structure
 
 ```
 Ritroso.md/
 ├── skills/
-│   ├── RITROSO.md            # Skill principale — flusso completo (markdown + YAML frontmatter)
-│   └── context-mapper.yaml   # Skill ausiliaria — mappatura risorse multimodale
+│   ├── RITROSO.md              # Main skill — complete flow (markdown + YAML frontmatter)
+│   └── context-mapper.yaml     # Auxiliary skill — multimodal resource mapping
 ├── prompts/
-│   ├── negative-verification.md   # Prompt negativo di auto-verifica
-│   ├── project-template.md        # Intestazione standard condivisa dal set
-│   └── file-set-templates/        # Template per ognuno dei 13 file del set
+│   ├── negative-verification.md    # Negative self-verification prompt
+│   ├── project-template.md         # Shared standard header for the file set
+│   ├── context-gap-questions.md    # Protocol for empty/incomplete context
+│   ├── inference-loop.md           # Inter-file questioning loop protocol
+│   └── file-set-templates/         # Templates for each of the 13 set files
 │       ├── 00_INDEX.md
 │       ├── 01_GOAL.md
 │       ├── 02_PRODUCT.md
@@ -40,162 +42,125 @@ Ritroso.md/
 │       ├── 10_ERROR.md
 │       ├── 11_INTERPOLATION.md
 │       └── 12_ASKED.md
-├── new-ideas/                # Output generati — organizzati per domain/progetto
+├── new-ideas/                  # Generated outputs — organized by domain/project
 │   └── {domain-slug}/
 │       └── {project-slug}/
 │           ├── 00_INDEX.md
-│           └── ... (13 file totali)
+│           └── ... (13 files total)
 └── docs/
-    └── how-it-works.md       # Documentazione tecnica del flusso v2
+    └── how-it-works.md         # Technical documentation of the v3 flow
 ```
 
 ---
 
-## Flusso Rapido v2
+## Quick Flow v3
 
 ```
-[PROMPT UTENTE]
+[USER PROMPT]
       ↓
-[SALVA PROMPT INTERO] → .ritroso_prompt_cache.tmp
+[SAVE FULL PROMPT] → .ritroso_prompt_cache.tmp
       ↓
-[CLASSIFICA DOMINIO] → domain_slug + project_name_slug
+[CLASSIFY DOMAIN] → domain_slug + project_name_slug
       ↓
-[CREA CARTELLA] → new-ideas/{domain_slug}/{project_name_slug}/
+[CONTEXT CHECK] ─── empty context? ──→ [CONTEXT GAP QUESTIONS — 1 per gap, sequential]
       ↓
-[CONTEXT CHECK] → manca contesto? → [DOMANDA ESPANSIONE — 1 sola]
+[INFERENCE LOOP] → files interrogate each other before generation
       ↓
-[CONTEXT MAPPER multimodale] → testo · codice · img · pdf · repo
+[CONTEXT MAPPER multimodal] → text · code · img · pdf · repo
       ↓
-[GENERA 13 FILE .MD] → 01_GOAL → 02_PRODUCT → ... → 12_ASKED
+[GENERATE 13 .MD FILES] → 01_GOAL → 02_PRODUCT → ... → 12_ASKED
+      (each file runs inner monologue + asks next file a question)
       ↓
-[PROMPT NEGATIVO] → "hai sbagliato tutto, verifica cross-file"
+[NEGATIVE PROMPT] → "you got it wrong — verify cross-file"
       ↓
 [00_INDEX.md] + [RITROSO-VERIFIED]
 ```
 
 ---
 
-## I 13 File del Set
+## The 13 Files of the Set
 
-| # | File | Risponde a |
-|---|------|------------|
-| 00 | `INDEX` | Mappa di navigazione — generato per ultimo |
-| 01 | `GOAL` | Perché esiste il progetto |
-| 02 | `PRODUCT` | Cosa fa nel dettaglio |
-| 03 | `NEXT_STEPS` | Cosa fare adesso, ordinato P1/P2/P3 |
-| 04 | `ELEMENTS` | Cosa contiene il sistema |
-| 05 | `COMPONENTS` | Come è costruito |
-| 06 | `PRICE` | Quanto costa per l'utente |
-| 07 | `BUDGET` | Quanto costa da produrre |
-| 08 | `LIMITS` | Cosa non si può/deve fare |
-| 09 | `AGENTS` | Chi fa cosa (AI + umani) |
-| 10 | `ERROR` | Cosa può andare storto |
-| 11 | `INTERPOLATION` | Come tutto si connette |
-| 12 | `ASKED` | Cosa non sappiamo ancora |
-
----
-
-## Come Usare
-
-1. Carica la skill [`skills/RITROSO.md`](./skills/RITROSO.md) nel tuo sistema di skill
-   (es. GitHub Copilot, OpenDevin, Continue, o custom agent)
-2. Fornisci un prompt di progetto
-3. Il sistema classifica automaticamente il dominio e crea la cartella output
-4. Se manca contesto critico, ti verrà posta **una sola domanda** prima di procedere
-5. Troverai i 13 file `.md` generati in `new-ideas/{domain}/{progetto}/`
-6. L'intero set viene auto-verificato con il prompt negativo prima della consegna
+| # | File | Answers |
+|---|------|---------|
+| 00 | `INDEX` | Navigation map — generated last |
+| 01 | `GOAL` | Why the project exists |
+| 02 | `PRODUCT` | What it does in detail |
+| 03 | `NEXT_STEPS` | What to do now, ordered P1/P2/P3 |
+| 04 | `ELEMENTS` | What the system contains |
+| 05 | `COMPONENTS` | How it is built |
+| 06 | `PRICE` | How much it costs for the user |
+| 07 | `BUDGET` | How much it costs to produce |
+| 08 | `LIMITS` | What cannot/must not be done |
+| 09 | `AGENTS` | Who does what (AI + humans) |
+| 10 | `ERROR` | What can go wrong |
+| 11 | `INTERPOLATION` | How everything connects |
+| 12 | `ASKED` | What we don't know yet |
 
 ---
 
-## Come Far Rendere al Massimo Ritroso
+## Inference Loop — Core Concept
 
-> **Ritroso è tanto più utile quanto più la repository è ricca di contesto strutturato.**
+Before generating each file, the model runs an **inter-file interrogation**:
 
-Non usare la repo solo come posto dove salvare gli output generati.
-Usala come **spazio di costruzione del contesto**: ogni file `.md` che crei diventa
-memoria operativa che il modello legge, collega e usa per generare output più coerenti.
+> Each file asks a question to the next file — and the next file must answer
+> before it is written. This creates a chain of inference that forces coherence
+> before the output exists.
 
-Quando Ritroso trova file già scritti nel repo, può:
-- evitare assunzioni sbagliate sul progetto
-- collegare obiettivi, vincoli, componenti e rischi in modo coerente
-- generare 13 file meno generici e più aderenti alla realtà del tuo progetto
-- ridurre il numero di `[OPEN]` e assunzioni non verificate nel set
-- migliorare la qualità e la profondità di ogni nuova idea sviluppata
-
-### File Consigliati da Creare nel Repo
-
-Puoi creare questi file nella root o in una cartella `context/`:
-
-| File | Cosa descrive | Impatto su Ritroso |
-|------|--------------|--------------------|
-| `GOAL.md` | Visione, obiettivo, perché esiste il progetto | Orienta tutti i 13 file del set |
-| `PRODUCT.md` | Funzioni, scope, MVP vs full | Riduce assunzioni su PRODUCT e COMPONENTS |
-| `USERS.md` | Tipologie di utenti, bisogni, contesti d'uso | Migliora AGENTS, ELEMENTS, PRICE |
-| `LIMITS.md` | Vincoli tecnici, economici, legali, anti-pattern | Potenzia LIMITS, ERROR, ASKED |
-| `SCENARIOS.md` | Casi d'uso reali, situazioni, trigger | Orienta NEXT_STEPS e INTERPOLATION |
-| `BUDGET.md` | Costi, risorse, tempo disponibile | Rende BUDGET e PRICE molto più precisi |
-| `ERRORS.md` | Failure mode, criticità note, edge case | Arricchisce ERROR e ASKED |
-| `STACK.md` | Tecnologie scelte, librerie, infrastruttura | Migliora COMPONENTS e INFRASTRUCTURE |
-| `AGENTS.md` | Ruoli umani e AI, responsabilità, orchestrazione | Potenzia AGENTS e INTERPOLATION |
-
-### Usa Tabelle di Scenario
-
-Ritroso legge bene i contenuti strutturati. Le **tabelle di scenario** sono il formato
-più efficace per trasferire contesto reale al modello in modo compatto e preciso.
-
-**Struttura consigliata per `SCENARIOS.md`:**
-
-| Scenario | Utente | Problema | Obiettivo | Vincolo | Output atteso |
-|----------|--------|----------|-----------|---------|---------------|
-| Fattura in ritardo | Admin | Non trova lo stato pagamento | Capire chi sollecitare | Dati CRM incompleti | Dashboard filtrabile per stato |
-| Nuovo cliente | Operatore | Dati sparsi tra CRM e fatture | Unificare il profilo cliente | Permessi diversi tra sistemi | Scheda cliente completa |
-| Campagna non converte | Marketing | CTR alto, vendite basse | Identificare il collo di bottiglia | Budget fisso | Report con heatmap funnel |
-| Deploy fallito | Dev | Errore silenzioso in produzione | Ripristinare il servizio in meno di 15min | Nessun rollback automatico | Runbook + alert |
-
-**Struttura consigliata per `USERS.md`:**
-
-| Ruolo | Bisogno principale | Frequenza d'uso | Competenza tecnica | Rischio principale |
-|-------|-------------------|-----------------|-------------------|-----------------|
-| Admin | Vista completa e controllo | Quotidiana | Alta | Abuso permessi |
-| Operatore | Ricerca rapida e aggiornamento | Quotidiana | Media | Errori manuali |
-| Commerciale | Vista cliente e storico acquisti | Settimanale | Bassa | Dati mancanti |
-| Cliente finale | Consultazione proprie fatture | Mensile | Bassa | Privacy |
-
-**Struttura consigliata per `LIMITS.md`:**
-
-| Categoria | Limite | Motivazione | Anti-pattern collegato |
-|-----------|--------|-------------|------------------------|
-| Tecnico | Nessun sync real-time nel MVP | Costo infrastruttura | Polling infinito |
-| Legale | GDPR: dati utenti non esportabili in chiaro | Compliance | Export CSV non filtrato |
-| Economico | Budget max 3 settimane dev | Risorse limitate | Scope creep continuo |
-| UX | Solo desktop nel MVP | Utenti interni | Responsive non prioritario |
-
-### La Regola Pratica
-
+Example chain:
 ```
-Contesto zero   → Ritroso lavora con assunzioni → output generico
-Contesto medio  → Ritroso connette le informazioni → output utile
-Contesto ricco  → Ritroso ragiona sulla realtà del progetto → output preciso
+01_GOAL asks → "Does the product actually solve this goal?"
+02_PRODUCT answers → then asks → "Are the components sufficient to build this?"
+05_COMPONENTS answers → then asks → "What breaks if this component fails?"
+10_ERROR answers → ...
 ```
 
-**Più costruisci il contesto nel repo, più ogni nuova idea nasce già radicata nel progetto reale.**
+The loop runs **before generation** and **after generation** (negative verification).
+This is the mechanism that prevents hallucinated consistency.
 
 ---
 
-## Domain Types Supportati
+## Context Gap Protocol
+
+If the prompt is **empty or insufficient**, the model does NOT hallucinate.
+Instead, it triggers the **context gap question protocol**:
+
+1. Identify the most critical missing dimension (one at a time)
+2. Ask exactly **one question** — the most blocking one
+3. Wait for user answer → merge into context
+4. Re-evaluate: are there still gaps? → ask next question
+5. Once minimum viable context is reached → start inference loop
+
+The model never skips this. A hallucinated context is worse than an empty one.
+
+---
+
+## How to Use
+
+1. Load the skill [`skills/RITROSO.md`](./skills/RITROSO.md) into your skill system
+   (e.g. GitHub Copilot, OpenDevin, Continue, or custom agent)
+2. Provide a project prompt
+3. The system automatically classifies the domain and creates the output folder
+4. If critical context is missing, you will be asked **one question at a time**
+5. You will find the 13 `.md` files generated in `new-ideas/{domain}/{project}/`
+6. The entire set is auto-verified with the negative prompt before delivery
+
+---
+
+## Domain Types Supported
 
 `design-campaign` · `web-development` · `ai-agent` · `product-strategy`
 `content-marketing` · `infrastructure` · `business-plan` · `research` · `generic`
 
 ---
 
-## Filosofia
+## Philosophy
 
-> *"Il modello deve avere torto prima di avere ragione."*
+> *"The model must be wrong before it can be right."*
 
-Il prompt negativo non è distruttivo — è il meccanismo che trasforma un output mediocre
-in uno coerente. Il LLM viene forzato a confrontare il suo lavoro con il prompt originale
-da **angoli ostili** (vendita, tempo, risorse, errori logici, contraddizioni cross-file).
+The negative prompt is not destructive — it is the mechanism that transforms
+a mediocre output into a coherent one. The LLM is forced to compare its work
+with the original prompt from **hostile angles** (sales, time, resources, logic errors,
+cross-file contradictions).
 
-In v2 la verifica è più potente perché controlla la **consistenza tra tutti i 13 file**,
-non solo la coerenza di un singolo documento con il prompt.
+In v3, the inference loop adds a second layer: **coherence is built before generation,
+not just verified after**. Files interrogate each other. The model reasons with itself.
