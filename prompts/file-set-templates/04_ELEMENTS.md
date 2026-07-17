@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "04_ELEMENTS.md"
+description: "Use this file to reason about the minimum and full set of elements required by the system in the current context. Interpret every element by its necessity, relationship to the product goal, and its exposure to inferred constraints such as missing resources, fragile dependencies, or scope compression. Favor element definitions that preserve system function with the lowest unjustified complexity."
+---
+
 # 04_ELEMENTS.md — {project_name}
 {standard_header}
 

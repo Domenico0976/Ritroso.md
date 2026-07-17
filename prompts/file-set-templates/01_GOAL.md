@@ -7,6 +7,11 @@
 ---
 
 ```markdown
+---
+name: "01_GOAL.md"
+description: "Use this file to reason about the core objective of the project in its real operating context. Interpret all goals through the lens of user value, declared constraints, inferred limits, and what must explicitly remain out of scope. If ambition conflicts with feasibility, prioritize the goal that still survives technical, budget, time, and anti-pattern boundaries described across the linked files."
+---
+
 # 01_GOAL.md — {project_name}
 {standard_header}
 

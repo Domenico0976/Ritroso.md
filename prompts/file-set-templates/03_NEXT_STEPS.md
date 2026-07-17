@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "03_NEXT_STEPS.md"
+description: "Use this file to decide the most leverage-rich actions in the current project state. Interpret prioritization through uncertainty reduction, dependency pressure, inferred blockers, and the limits already known from budget, scope, architecture, or user context. Prefer actions that validate viability quickly, reduce risk early, and avoid busywork or speculative execution unsupported by the rest of the file set."
+---
+
 # 03_NEXT_STEPS.md — {project_name}
 {standard_header}
 

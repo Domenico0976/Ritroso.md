@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "02_PRODUCT.md"
+description: "Use this file to interpret what the product must actually do to satisfy the project goal without drifting into generic scope expansion. Read it as the executable translation of the goal under current domain constraints, inferred risks, and implementation boundaries. Prefer feature decisions that preserve goal-product alignment, avoid unnecessary complexity, and remain defensible against the limits, budget, and error scenarios documented elsewhere in the set."
+---
+
 # 02_PRODUCT.md — {project_name}
 {standard_header}
 

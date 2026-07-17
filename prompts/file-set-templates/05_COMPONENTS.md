@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "05_COMPONENTS.md"
+description: "Use this file to interpret the technical construction of the project from a feasibility-first perspective. Read components as implementation commitments constrained by the inferred stack, operational limits, shared dependencies, and known failure surfaces. Prefer reusable and high-leverage components, reject architecture that adds complexity without supporting the goal, and keep an eye on which component becomes the most dangerous single point of failure."
+---
+
 # 05_COMPONENTS.md — {project_name}
 {standard_header}
 

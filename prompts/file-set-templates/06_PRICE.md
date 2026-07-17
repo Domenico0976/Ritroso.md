@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "06_PRICE.md"
+description: "Use this file to reason about user-facing pricing in relation to real value, operating cost, and adoption risk. Interpret pricing as a strategic constraint, not just a number: it must survive inferred budget pressure, product maturity, target-user tolerance, and competitive alternatives. Prefer pricing that keeps the project sustainable without overpromising value the current scope, stack, or delivery capacity cannot support."
+---
+
 # 06_PRICE.md — {project_name}
 {standard_header}
 
@@ -27,7 +32,7 @@
 
 ## REVENUE SCENARIOS
 <!-- Best case / expected / minimum viable -->
-{revenue_scenarios}
+{revenue_scenios}
 
 ## INFERENCE QUESTION → 03_NEXT_STEPS
 <!-- Pre-generation: asked to 03_NEXT_STEPS before this file was written -->

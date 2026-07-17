@@ -8,6 +8,11 @@
 ---
 
 ```markdown
+---
+name: "12_ASKED.md"
+description: "Use this file to surface everything the project still does not know, cannot justify, or should not pretend is resolved. Interpret it as the uncertainty ledger for the whole file set, with special attention to unresolved inference gaps, risky assumptions, deferred decisions, and contradictions across files. Prefer explicit uncertainty over false confidence, because this file protects the agent from acting on invented certainty."
+---
+
 # 12_ASKED.md — {project_name}
 {standard_header}
 

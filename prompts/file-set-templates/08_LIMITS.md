@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "08_LIMITS.md"
+description: "Use this file to reason about what the project must not violate if it wants to remain coherent, safe, and buildable. Interpret every limit as an active design boundary informed by failures, constraints, budget, legal obligations, and scope compression. Prefer hard clarity over optional flexibility, and treat inferred anti-patterns as operational warnings that should shape every downstream decision."
+---
+
 # 08_LIMITS.md — {project_name}
 {standard_header}
 

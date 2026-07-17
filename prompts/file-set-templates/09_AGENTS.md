@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "09_AGENTS.md"
+description: "Use this file to interpret who owns decisions, execution, monitoring, and escalation across humans and AI agents. Read each role under the pressure of inferred limits, accountability boundaries, budget realism, and failure response requirements. Prefer clear responsibility mapping and constrained delegation; avoid agent definitions that assume unlimited context, unlimited autonomy, or budget the project cannot actually sustain."
+---
+
 # 09_AGENTS.md — {project_name}
 {standard_header}
 

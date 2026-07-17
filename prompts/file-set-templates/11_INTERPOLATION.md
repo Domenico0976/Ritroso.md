@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "11_INTERPOLATION.md"
+description: "Use this file to interpret the project as a connected system of dependencies, signals, agents, components, and flows. Read relationships through critical-path thinking: identify what carries the most coordination risk, what breaks downstream when a dependency fails, and what external integrations constrain the design. Prefer connection maps that expose systemic pressure instead of hiding it behind isolated feature descriptions."
+---
+
 # 11_INTERPOLATION.md — {project_name}
 {standard_header}
 

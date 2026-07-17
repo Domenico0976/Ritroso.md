@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "07_BUDGET.md"
+description: "Use this file to interpret production and operating cost under the real limits of the current project. Read budget as a forcing function that exposes feasibility, agent affordability, architecture weight, and the mismatch between ambition and available resources. Prefer cost structures that support the goal with minimum waste, and treat any budget that only works under optimistic assumptions as a warning signal requiring explicit attention."
+---
+
 # 07_BUDGET.md — {project_name}
 {standard_header}
 

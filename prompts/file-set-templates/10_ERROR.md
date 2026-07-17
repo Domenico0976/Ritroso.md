@@ -6,6 +6,11 @@
 ---
 
 ```markdown
+---
+name: "10_ERROR.md"
+description: "Use this file to reason about how the project can fail in practice, not just in theory. Interpret errors through the most fragile components, likely cascades, silent failures, operational blind spots, and the limits required to contain them. Prefer realistic failure modeling over optimistic assumptions, and treat hidden breakpoints or unowned recovery paths as critical risks that must shape the rest of the design."
+---
+
 # 10_ERROR.md — {project_name}
 {standard_header}
 
