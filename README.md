@@ -107,6 +107,81 @@ Ritroso.md/
 
 ---
 
+## Come Far Rendere al Massimo Ritroso
+
+> **Ritroso è tanto più utile quanto più la repository è ricca di contesto strutturato.**
+
+Non usare la repo solo come posto dove salvare gli output generati.
+Usala come **spazio di costruzione del contesto**: ogni file `.md` che crei diventa
+memoria operativa che il modello legge, collega e usa per generare output più coerenti.
+
+Quando Ritroso trova file già scritti nel repo, può:
+- evitare assunzioni sbagliate sul progetto
+- collegare obiettivi, vincoli, componenti e rischi in modo coerente
+- generare 13 file meno generici e più aderenti alla realtà del tuo progetto
+- ridurre il numero di `[OPEN]` e assunzioni non verificate nel set
+- migliorare la qualità e la profondità di ogni nuova idea sviluppata
+
+### File Consigliati da Creare nel Repo
+
+Puoi creare questi file nella root o in una cartella `context/`:
+
+| File | Cosa descrive | Impatto su Ritroso |
+|------|--------------|--------------------|
+| `GOAL.md` | Visione, obiettivo, perché esiste il progetto | Orienta tutti i 13 file del set |
+| `PRODUCT.md` | Funzioni, scope, MVP vs full | Riduce assunzioni su PRODUCT e COMPONENTS |
+| `USERS.md` | Tipologie di utenti, bisogni, contesti d'uso | Migliora AGENTS, ELEMENTS, PRICE |
+| `LIMITS.md` | Vincoli tecnici, economici, legali, anti-pattern | Potenzia LIMITS, ERROR, ASKED |
+| `SCENARIOS.md` | Casi d'uso reali, situazioni, trigger | Orienta NEXT_STEPS e INTERPOLATION |
+| `BUDGET.md` | Costi, risorse, tempo disponibile | Rende BUDGET e PRICE molto più precisi |
+| `ERRORS.md` | Failure mode, criticità note, edge case | Arricchisce ERROR e ASKED |
+| `STACK.md` | Tecnologie scelte, librerie, infrastruttura | Migliora COMPONENTS e INFRASTRUCTURE |
+| `AGENTS.md` | Ruoli umani e AI, responsabilità, orchestrazione | Potenzia AGENTS e INTERPOLATION |
+
+### Usa Tabelle di Scenario
+
+Ritroso legge bene i contenuti strutturati. Le **tabelle di scenario** sono il formato
+più efficace per trasferire contesto reale al modello in modo compatto e preciso.
+
+**Struttura consigliata per `SCENARIOS.md`:**
+
+| Scenario | Utente | Problema | Obiettivo | Vincolo | Output atteso |
+|----------|--------|----------|-----------|---------|---------------|
+| Fattura in ritardo | Admin | Non trova lo stato pagamento | Capire chi sollecitare | Dati CRM incompleti | Dashboard filtrabile per stato |
+| Nuovo cliente | Operatore | Dati sparsi tra CRM e fatture | Unificare il profilo cliente | Permessi diversi tra sistemi | Scheda cliente completa |
+| Campagna non converte | Marketing | CTR alto, vendite basse | Identificare il collo di bottiglia | Budget fisso | Report con heatmap funnel |
+| Deploy fallito | Dev | Errore silenzioso in produzione | Ripristinare il servizio in meno di 15min | Nessun rollback automatico | Runbook + alert |
+
+**Struttura consigliata per `USERS.md`:**
+
+| Ruolo | Bisogno principale | Frequenza d'uso | Competenza tecnica | Rischio principale |
+|-------|-------------------|-----------------|-------------------|-----------------|
+| Admin | Vista completa e controllo | Quotidiana | Alta | Abuso permessi |
+| Operatore | Ricerca rapida e aggiornamento | Quotidiana | Media | Errori manuali |
+| Commerciale | Vista cliente e storico acquisti | Settimanale | Bassa | Dati mancanti |
+| Cliente finale | Consultazione proprie fatture | Mensile | Bassa | Privacy |
+
+**Struttura consigliata per `LIMITS.md`:**
+
+| Categoria | Limite | Motivazione | Anti-pattern collegato |
+|-----------|--------|-------------|------------------------|
+| Tecnico | Nessun sync real-time nel MVP | Costo infrastruttura | Polling infinito |
+| Legale | GDPR: dati utenti non esportabili in chiaro | Compliance | Export CSV non filtrato |
+| Economico | Budget max 3 settimane dev | Risorse limitate | Scope creep continuo |
+| UX | Solo desktop nel MVP | Utenti interni | Responsive non prioritario |
+
+### La Regola Pratica
+
+```
+Contesto zero   → Ritroso lavora con assunzioni → output generico
+Contesto medio  → Ritroso connette le informazioni → output utile
+Contesto ricco  → Ritroso ragiona sulla realtà del progetto → output preciso
+```
+
+**Più costruisci il contesto nel repo, più ogni nuova idea nasce già radicata nel progetto reale.**
+
+---
+
 ## Domain Types Supportati
 
 `design-campaign` · `web-development` · `ai-agent` · `product-strategy`
