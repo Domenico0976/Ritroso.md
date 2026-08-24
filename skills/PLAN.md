@@ -1,7 +1,7 @@
 ---
 name: "PLAN.md"
-version: "1.0"
-description: "Mandatory execution protocol for the Ritroso skill. Defines the generation timeline, project rules extracted from all file types, gate conditions that block progression, and the Panel of Agents that attacks every decision before a file is closed."
+version: "1.1"
+description: "Mandatory execution protocol for the Ritroso skill. Defines the generation timeline, project rules extracted from all file types, gate conditions that block progression, the Panel of Agents that attacks every decision before a file is closed, and the Skill Awareness protocol that maps active user skills to the project domain."
 applies_to: "All Ritroso file-set generations"
 ---
 
@@ -12,7 +12,7 @@ applies_to: "All Ritroso file-set generations"
 
 ---
 
-## PHASE 0 — PROMPT INTAKE & CLASSIFICATION
+## PHASE 0 — PROMPT INTAKE, CLASSIFICATION & SKILL AWARENESS
 
 ### Step 0.1 — Read the prompt exactly as given. Do not improve it.
 The raw prompt is the ground truth. Do not infer what the user "probably meant".
@@ -39,6 +39,115 @@ Only proceed to Phase 1 when structural ambiguities < 2.
 
 > Rule: One question at a time. Never dump a list of questions on the user.
 > The most blocking question is the one whose answer changes the most other answers.
+
+---
+
+### Step 0.4 — SKILL AWARENESS PROTOCOL
+
+> This step is NEVER blocking. It enriches the generation — it does not gate it.
+> A missing skill never stops the process. It only adds a recommendation.
+
+#### 0.4.1 — Detect active skills in context
+Scan the current agent context for active skills or tools the user has installed or referenced.
+Look for: skill files, .yaml configs, referenced tools, installed extensions, or explicit user mentions.
+
+For each detected skill, check if it is relevant to the classified domain (from Step 0.2).
+A skill is relevant if it covers: code generation, design, deployment, content, data, audio/video, or project management for that domain.
+
+Document findings in `00_INDEX.md` under a `## Skill Stack` section:
+```
+## Skill Stack
+### Active Skills Detected
+- [SKILL NAME] — [what it does] — [how it helps this project]
+
+### Recommended Skills Not Detected
+- [SKILL NAME] — [what it does] — [link]
+```
+
+#### 0.4.2 — Domain-to-Skill Map
+Based on the classified domain, recommend the following skill sets.
+If a skill is already active in context, mark it `[ACTIVE]`. If not, mark it `[NOT DETECTED — recommended]` and include the link.
+
+---
+
+##### Domain: `software-product`
+| Skill / Tool | Purpose | Link if not active |
+|---|---|---|
+| GitHub Copilot | Code generation, refactoring, inline docs | https://github.com/features/copilot |
+| Vercel v0 | UI component generation from prompts | https://v0.dev |
+| Supabase MCP | Database, auth, storage via natural language | https://supabase.com/docs/guides/ai |
+| Sentry | Error monitoring and alerting | https://sentry.io |
+| Linear | Issue tracking and sprint planning | https://linear.app |
+| Cursor | AI-native code editor with codebase context | https://cursor.sh |
+
+---
+
+##### Domain: `creative-technical`
+| Skill / Tool | Purpose | Link if not active |
+|---|---|---|
+| p5.js / Three.js docs skill | Generative graphics and WebGL reference | https://p5js.org / https://threejs.org |
+| Tone.js skill | Web audio synthesis and sequencing | https://tonejs.github.io |
+| TouchDesigner | Real-time node-based audiovisual programming | https://derivative.ca |
+| RunwayML | AI video generation and compositing | https://runwayml.com |
+| Figma | UI and visual design | https://figma.com |
+| GLSL / ShaderToy reference | GPU shader writing | https://shadertoy.com |
+
+---
+
+##### Domain: `content-operations`
+| Skill / Tool | Purpose | Link if not active |
+|---|---|---|
+| WordPress CLI / WP-CLI | WP automation from command line | https://wp-cli.org |
+| Zapier / Make | No-code workflow automation | https://zapier.com / https://make.com |
+| Notion AI | Structured editorial planning | https://notion.so |
+| Grammarly / LanguageTool | Writing quality and consistency | https://grammarly.com |
+| Airtable | Editorial calendar and content tracking | https://airtable.com |
+| Contentful / Sanity | Headless CMS for structured content | https://contentful.com / https://sanity.io |
+
+---
+
+##### Domain: `open-source-framework`
+| Skill / Tool | Purpose | Link if not active |
+|---|---|---|
+| GitHub Copilot | Code and docs generation | https://github.com/features/copilot |
+| Conventional Commits | Consistent commit message format | https://www.conventionalcommits.org |
+| Semantic Release | Automated versioning and changelog | https://semantic-release.gitbook.io |
+| MkDocs / Docusaurus | Documentation site generation | https://mkdocs.org / https://docusaurus.io |
+| OpenSSF Scorecard | Open source security best practices | https://securityscorecards.dev |
+| shields.io | README badges (build, coverage, license) | https://shields.io |
+
+---
+
+##### Domain: `service-or-agency`
+| Skill / Tool | Purpose | Link if not active |
+|---|---|---|
+| Notion AI | Project documentation and proposals | https://notion.so |
+| Miro | Visual collaboration and planning boards | https://miro.com |
+| HubSpot / Pipedrive | Client CRM and deal tracking | https://hubspot.com / https://pipedrive.com |
+| Harvest / Toggl | Time tracking and invoicing | https://getharvest.com / https://toggl.com |
+| Loom | Async video communication with clients | https://loom.com |
+| Figma | Mockups, proposals, and presentations | https://figma.com |
+
+---
+
+##### Domain: `other`
+| Skill / Tool | Purpose | Link if not active |
+|---|---|---|
+| Perplexity | Research and fact-checking | https://perplexity.ai |
+| Obsidian | Personal knowledge base and linking | https://obsidian.md |
+| Whimsical | Flowcharts and diagrams | https://whimsical.com |
+| Tana | Structured thinking and project nodes | https://tana.inc |
+
+---
+
+#### 0.4.3 — Skill Awareness output rules
+
+1. **Never block generation** because a skill is missing. A missing skill is a recommendation, not a gate.
+2. **Never invent skills** the user hasn't mentioned. Only recommend from the domain map above or from verified context.
+3. **If no skills are detected and context provides no signals**: include the full recommended list for the classified domain in `00_INDEX.md` under `## Skill Stack — Recommended for this domain`.
+4. **If the user has skills active that are NOT in the domain map**: include them anyway under `## Skill Stack — Active (user-defined)` with a note on how they can help this specific project.
+5. **Skill recommendations go in `00_INDEX.md` only**. Do not repeat them in other files unless a specific file directly depends on a skill (e.g. `05_COMPONENTS.md` may reference a code generation skill).
+6. **The `05_COMPONENTS.md` file may reference active skills** under a `## Active Skills` subsection: list which detected skills the developer should activate when working on each component.
 
 ---
 
@@ -190,6 +299,12 @@ It must reflect the actual verification status, not a template.
 - Open questions: N (list OPEN IDs)
 - Goal conflicts: N (list [GOAL-CONFLICT] IDs or NONE)
 - ASSUMED-NO-BASIS items: N (list or NONE)
+
+## Skill Stack
+### Active Skills Detected
+- (list or NONE DETECTED)
+### Recommended Skills for this domain
+- (list with links, from Step 0.4.2)
 ```
 
 ### Step 4.3 — Do not mark RITROSO-VERIFIED if any of the following are true:
@@ -227,6 +342,7 @@ These rules are derived from patterns across all Ritroso file types. They are no
 - R-COMP-1: Stack must be cross-checked against 07_BUDGET (can we afford this?) and 08_LIMITS (is it allowed?).
 - R-COMP-2: Every component must appear in 04_ELEMENTS. A component not in Elements does not exist.
 - R-COMP-3: The architecture must include a node pipeline diagram showing data/signal flow.
+- R-COMP-4: If active skills are detected in Step 0.4, list them under `## Active Skills` with the component they support.
 
 ### Rules from 06_PRICE
 - R-PRICE-1: If price is TBD, a decision deadline must be stated (e.g. "must be decided before P2").
@@ -264,6 +380,11 @@ These rules are derived from patterns across all Ritroso file types. They are no
 - R-ASKED-3: No open question may remain without a safest assumption — but the assumption must be tagged and justified.
 - R-ASKED-4: Questions are sorted by blocking priority: structural blockers first, optimisation questions last.
 
+### Rules from 00_INDEX
+- R-INDEX-1: Skill Stack section is mandatory. Even if no skills are detected, the recommended list for the domain must appear.
+- R-INDEX-2: Active skills are listed separately from recommended skills. Never merge the two lists.
+- R-INDEX-3: Every recommended skill link must be a working URL. No placeholder links.
+
 ---
 
 ## QUICK REFERENCE — GATE SUMMARY
@@ -289,7 +410,20 @@ These rules are derived from patterns across all Ritroso file types. They are no
 
 ---
 
+## QUICK REFERENCE — SKILL AWARENESS
+
+| Situation | Action |
+|-----------|--------|
+| Skills detected and relevant | Mark `[ACTIVE]`, include in `00_INDEX.md` Skill Stack, reference in `05_COMPONENTS.md` |
+| Skills detected but not relevant to domain | List under `Active (user-defined)` with note on how they might still help |
+| No skills detected | Include full recommended list for the domain in `00_INDEX.md` with links |
+| Domain is `other` | Use the `other` domain skill table as baseline, supplement from prompt context |
+| User explicitly disables skill suggestions | Omit Skill Stack section entirely. Never force recommendations. |
+
+---
+
 ## VERSION HISTORY
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-08-24 | Initial release — timeline, project rules, panel of agents |
+| 1.1 | 2026-08-24 | Added Phase 0.4 Skill Awareness — active skill detection, domain-to-skill map (6 domains), fallback resource links, R-COMP-4 and R-INDEX rules, Skill Stack in 00_INDEX template |
