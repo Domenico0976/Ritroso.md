@@ -15,29 +15,54 @@ description: "Use this file to interpret the project as a connected system of de
 {standard_header}
 
 ## CONNECTION MAP
-<!-- How modules/elements/agents connect to each other -->
-<!-- Format: A → B (connection_type) [direction] -->
+<!-- REQUIRED FORMAT — one entry per significant connection:
+     {Source} → {Target} · {connection_type: data/control/event/dependency} · {direction: unidirectional/bidirectional} · {condition: always/on-trigger/on-failure}
+     Do NOT list isolated components — only named connections between named items from 04_ELEMENTS and 05_COMPONENTS -->
 {connection_map}
 
 ## CRITICAL DEPENDENCY
-<!-- The single most critical dependency: if this breaks, what cascades? -->
-<!-- [INF] if derived from inference loop answer to 03_NEXT_STEPS -->
+<!-- The single most critical dependency — [INF] required if from inference loop -->
+<!-- REQUIRED FORMAT:
+     Dependency: {name — real service, module, or role}
+     Type: {external service / internal module / human role / API contract}
+     Cascade if broken:
+       Level 1: {what fails immediately}
+       Level 2: {what that blocks}
+       Level 3: {what reaches the user / the goal}
+     Mitigation: {NONE | PARTIAL — describe what exists | COVERED — describe mechanism}
+     Detection: {how is degradation observable before Level 3 is reached} -->
 {critical_dependency}
 
 ## DATA FLOWS
-<!-- How data moves: input → transform → output -->
+<!-- How data moves through the system — each flow must be complete:
+     {input source} → {transform/processor} → {output destination}
+     Include: data type, volume (rough), failure behavior if transform fails -->
 {data_flows}
 
 ## EXTERNAL INTEGRATIONS
-<!-- Third-party APIs, services, webhooks, SDKs -->
+<!-- Third-party APIs, services, webhooks, SDKs —
+     | Integration | Type | Auth method | Rate limit / quota | Failure behavior | Fallback? |
+     If no external integrations: N/A — [reason] (do not leave blank) -->
 {external_integrations}
 
 ## EVENTS / TRIGGERS
-<!-- What triggers what: user action → system reaction -->
+<!-- What triggers what — REQUIRED FORMAT:
+     {Actor/Event} → triggers → {Action/Component} → produces → {Output/State change}
+     Include at minimum: primary user action, primary error event, primary scheduled event -->
 {events_triggers}
 
 ## SIMPLIFIED GRAPH
-<!-- Text version of the project knowledge graph -->
+<!-- Text-based directed graph of the project's core flows —
+     Use indentation to show hierarchy, → for dependencies, ↔ for bidirectional, ✗ for failure paths:
+
+     [Entry point]
+       → [Core process A]
+           → [Component X] → [Output 1]
+           ✗ [Component X fails] → [Error handler] → [Recovery path]
+       → [Core process B]
+           ↔ [External service]
+
+     Must include at least one failure path -->
 {simplified_graph}
 
 ## INFERENCE QUESTION → 12_ASKED
@@ -46,12 +71,14 @@ description: "Use this file to interpret the project as a connected system of de
 >  that still has no answer and would most change the design if answered?"
 >
 > Answer received: {inference_answer_from_12}
+> Answer quality: [PASS | PARTIAL | OPEN-INF-N]
 
 ## INFERENCE ANSWER ← 03_NEXT_STEPS
 <!-- Answer provided to 03_NEXT_STEPS during inference loop -->
 > Question received: "What is the most critical dependency in the system?
 >  If this dependency breaks, what cascades?"
 > Answer given: {inference_answer_to_03}
+> Answer quality: [PASS | PARTIAL | OPEN-INF-N]
 
 ## DEPENDENCIES
 → see [[04_ELEMENTS]] for connected elements
