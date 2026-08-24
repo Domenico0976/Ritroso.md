@@ -1,7 +1,7 @@
 ---
 name: "PLAN.md"
-version: "1.2"
-description: "Mandatory execution protocol for the Ritroso skill. Defines generation phases, project rules, gate conditions, Panel of Agents, and the Skill Injection Engine — which detects active LLM Skills (SKILL.md format, installed in .claude/skills/) and injects their rules as operative instructions into the relevant Ritroso files during generation."
+version: "1.3"
+description: "Mandatory execution protocol for the Ritroso skill. Defines generation phases, project rules, gate conditions, Panel of Agents, and the Skill Discovery & Injection Engine — which scans all known skill paths across Windows/Mac/Linux, falls back to grep when direct access is unavailable, detects active LLM Skills (SKILL.md format) from any platform and any user-defined location, and injects their rules as operative instructions into the relevant Ritroso files during generation."
 applies_to: "All Ritroso file-set generations"
 ---
 
@@ -12,7 +12,7 @@ applies_to: "All Ritroso file-set generations"
 
 ---
 
-## PHASE 0 — PROMPT INTAKE, CLASSIFICATION & SKILL INJECTION
+## PHASE 0 — PROMPT INTAKE, CLASSIFICATION & SKILL DISCOVERY
 
 ### Step 0.1 — Read the prompt exactly as given. Do not improve it.
 The raw prompt is the ground truth. Do not infer what the user "probably meant".
@@ -42,25 +42,123 @@ Only proceed to Phase 1 when structural ambiguities < 2.
 
 ---
 
-### Step 0.4 — SKILL INJECTION ENGINE
+### Step 0.4 — SKILL DISCOVERY & INJECTION ENGINE
 
 > This step is NEVER blocking. It enriches the generation — it does not gate it.
-> Skills here are LLM Skills: SKILL.md files installed in `.claude/skills/` (project)
-> or `~/.claude/skills/` (user), loaded automatically by Claude Code and compatible CLIs.
+> Skills here are LLM Skills: SKILL.md files installed on the user's machine or passed in context.
 > They are NOT external tools, SaaS products, or browser extensions.
 
 ---
 
-#### 0.4.1 — Skill Detection
+#### 0.4.0 — SKILL DISCOVERY (cross-platform, multi-path, grep fallback)
 
-Scan the context for active LLM Skills. Look for:
-- Files named `SKILL.md` present in context or referenced by the user
-- Skill names mentioned explicitly (e.g. "use the impeccable skill")
-- Skill folders visible in `.claude/skills/` or `~/.claude/skills/`
-- `load_skill` calls already executed in this session
+> The agent MUST attempt discovery before any generation begins.
+> Discovery is a best-effort read of the filesystem. If access is denied → use grep fallback.
+> Never assume skills are absent without attempting discovery first.
 
-**A skill is ACTIVE** if its SKILL.md content is present in context or has been loaded.
-**A skill is ABSENT** if it is not in context — regardless of whether the user has heard of it.
+##### Priority order of discovery
+Discovery runs in this order. Stop at the first method that returns results — then continue
+checking lower-priority methods to catch additional skills in other locations.
+
+**Method 1 — Context scan (zero filesystem access required)**
+Scan the current conversation context for:
+- Files named `SKILL.md` already present in context (user uploaded or pasted)
+- Skill names mentioned explicitly by the user (e.g. "use impeccable", "ponytail is active")
+- `load_skill()` calls already executed in this session
+- YAML frontmatter blocks with `name:` fields that look like skill declarations
+
+These are **ACTIVE** immediately — no filesystem read needed.
+
+**Method 2 — Direct path scan**
+Scan the known skill paths in this order. On each path, list subdirectories and check
+for a `SKILL.md` file inside each one.
+
+```
+# WINDOWS paths (check all)
+%USERPROFILE%\.claude\skills\              → user-level, all projects
+%APPDATA%\Claude\skills\                   → alternative AppData location
+%LOCALAPPDATA%\Claude\skills\             → LocalAppData variant
+<PROJECT_ROOT>\.claude\skills\            → project-level
+<PROJECT_ROOT>\skills\                    → bare skills folder at root
+<PROJECT_ROOT>\claude\skills\             → lowercase variant
+
+# macOS paths (check all)
+~/.claude/skills/                          → user-level, all projects
+~/Library/Application Support/Claude/skills/ → macOS app support
+<PROJECT_ROOT>/.claude/skills/            → project-level
+<PROJECT_ROOT>/skills/                    → bare skills folder at root
+<PROJECT_ROOT>/claude/skills/             → lowercase variant
+
+# LINUX paths (check all)
+~/.claude/skills/                          → user-level, all projects
+~/.config/claude/skills/                  → XDG config standard
+~/.local/share/claude/skills/             → XDG data standard
+<PROJECT_ROOT>/.claude/skills/            → project-level
+<PROJECT_ROOT>/skills/                    → bare skills folder at root
+<PROJECT_ROOT>/claude/skills/             → lowercase variant
+
+# CROSS-PLATFORM — Codex CLI, Gemini CLI, OpenCode, Qwen Code
+<PROJECT_ROOT>/.codex/skills/
+<PROJECT_ROOT>/.gemini/skills/
+<PROJECT_ROOT>/.opencode/skills/
+<PROJECT_ROOT>/agent-skills/
+<PROJECT_ROOT>/llm-skills/
+```
+
+For each path found:
+1. List all subdirectories
+2. Check if `SKILL.md` (case-insensitive: `skill.md`, `Skill.md`) exists inside
+3. If yes → read the file, mark skill as ACTIVE
+4. Extract: `name`, `description`, `version` from YAML frontmatter if present
+
+**Method 3 — Grep fallback (when direct path access is denied or paths don't exist)**
+If Method 2 returns 0 results due to access denial or missing paths, run a recursive
+grep from the project root and from the user home directory:
+
+```bash
+# From project root
+find . -name "SKILL.md" -o -name "skill.md" 2>/dev/null
+
+# From user home (cross-platform equivalent)
+# Windows PowerShell:
+Get-ChildItem -Path $HOME -Recurse -Filter "SKILL.md" -ErrorAction SilentlyContinue
+# macOS/Linux:
+find ~ -name "SKILL.md" 2>/dev/null | head -50
+
+# Grep inside found files to confirm they are LLM skills (not random files named SKILL.md):
+grep -l "^name:" found_files | xargs grep -l "description:"
+```
+
+If grep also fails (no shell access) → proceed to Method 4.
+
+**Method 4 — Inference from project structure**
+If no filesystem access at all is available:
+- Look for `CLAUDE.md`, `.claude/settings.json`, or any config file that lists skills
+- Look for `package.json` / `pyproject.toml` / `requirements.txt` mentioning skill names
+- Look for import statements or comments referencing known skill names
+
+If a skill name is found via inference → mark as PROBABLE (not ACTIVE). List under
+`## Skill Stack — Probable (inferred)` in `00_INDEX.md`.
+
+**Result classification**
+| Status | Meaning | Action |
+|--------|---------|--------|
+| ACTIVE | SKILL.md content is in context or read from disk | Inject rules into target files |
+| PROBABLE | Name found via inference but content not read | List in INDEX, note as unverified |
+| ABSENT | Not found by any method | Recommend in INDEX with install instructions |
+
+##### User-defined skills (always respected)
+If the user declares a skill that is not in the known catalog — whether via context, mention,
+or a custom SKILL.md file — it is treated as ACTIVE and its rules are injected verbatim.
+Custom skills are tagged `[SKILL:custom/skill-name]` to distinguish them from catalog skills.
+Never dismiss or downgrade a user-declared skill. Never override a user skill with a catalog
+skill that covers the same category.
+
+---
+
+#### 0.4.1 — Skill Detection & Classification
+
+After running §0.4.0:
 
 For each ACTIVE skill:
 1. Identify its **category** from the Skill Category Map (§0.4.2)
@@ -70,25 +168,34 @@ For each ACTIVE skill:
 
 For each ABSENT but relevant skill:
 - Add it to `00_INDEX.md` under `## Skill Stack — Recommended` with install instructions
+  (direct GitHub raw URL or `load_skill()` call)
 - Do NOT inject placeholder rules — only inject from what is actually loaded
 
 ---
 
 #### 0.4.2 — Skill Category Map & Injection Targets
 
-Each category lists: what skills cover it, which Ritroso files they inject into, and the curated skill list (non-redundant, covering the full spectrum from code to design to marketing to security).
+Each category: what skills cover it, which Ritroso files they inject into, curated non-redundant
+skill list covering the full spectrum (code → design → marketing → security → devops → AI agents).
+Sources: Prat011/awesome-llm-skills, mingrath/awesome-claude-skills, VoltAgent/awesome-agent-skills,
+gmh5225/awesome-skills, awesomeclaude.ai, pbakaus/impeccable, mastering-claude.com.
 
 ---
 
 ##### CATEGORY: `code-quality`
-**What it covers**: Code style enforcement, linting rules, refactoring patterns, naming conventions, error handling standards, TypeScript strictness, commit hygiene.
+**What it covers**: Code style enforcement, linting, refactoring, naming conventions,
+error handling standards, TypeScript strictness, commit hygiene, code review.
 
-**Recommended skills** (install one, not all — they overlap):
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `impeccable` | Enforces clean code: no magic numbers, no dead code, consistent naming, mandatory error handling | [github.com/Prat011/awesome-llm-skills/impeccable](https://github.com/Prat011/awesome-llm-skills) |
-| `move-code-quality-skill` | Move language quality checklist (Move 2024 Edition) | [github.com/Prat011/awesome-llm-skills/move-code-quality-skill](https://github.com/Prat011/awesome-llm-skills) |
-| `changelog-generator` | Transforms git commits into user-facing changelogs | [github.com/Prat011/awesome-llm-skills/changelog-generator](https://github.com/Prat011/awesome-llm-skills) |
+**Recommended skills** (install one per subcategory — they overlap):
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `impeccable` | Design audit & code polish: no magic numbers, no dead code, mandatory error handling, consistent naming | [github.com/pbakaus/impeccable](https://github.com/pbakaus/impeccable) — 10k+ ★ |
+| `simplify` | Reviews recently changed files for reuse, quality, efficiency — spawns 3 parallel review agents | [github.com/anthropics/claude-code-skills/simplify](https://github.com/anthropics/claude-code-skills) |
+| `code-reviewer` | Structured code review by severity level | [claude-codex.fr/skills/code-reviewer](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/code-reviewer/SKILL.md) |
+| `systematic-debug` | Methodical debugging: hypothesis → test → verify loop | [claude-codex.fr/skills/debug-systematic](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/debug/SKILL.md) |
+| `changelog-generator` | Transforms git commits into user-facing changelogs | [github.com/Prat011/awesome-llm-skills/changelog-generator](https://github.com/Prat011/awesome-llm-skills/tree/main/changelog-generator) |
+| `llm-sast-scanner` | SAST taint analysis across 34 vulnerability classes (Java/Python/JS/TS/PHP/.NET) | [github.com/gmh5225/awesome-skills](https://github.com/gmh5225/awesome-skills) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -101,16 +208,19 @@ Each category lists: what skills cover it, which Ritroso files they inject into,
 ---
 
 ##### CATEGORY: `ui-ux-design`
-**What it covers**: Component design, layout systems, design tokens, accessibility, responsive patterns, visual hierarchy, interaction design.
+**What it covers**: Component design, layout systems, design tokens, accessibility,
+responsive patterns, visual hierarchy, interaction design, web standards.
 
 **Recommended skills** (pick by depth needed):
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `ux-ui-pro-max` | Full UX/UI system: component hierarchy, accessibility rules, responsive patterns, interaction design principles | Search `.claude/skills/ux-ui-pro-max/` |
-| `website-building` | Production-grade web design: design tokens, typography, motion, CSS/Tailwind, anti-patterns | [Perplexity built-in — load via `load_skill("website-building")`] |
-| `canvas-design` | Visual art in PNG/PDF: posters, static design pieces using aesthetic principles | [github.com/Prat011/awesome-llm-skills/canvas-design](https://github.com/Prat011/awesome-llm-skills) |
-| `theme-factory` | Applies font/color themes to slides, docs, reports, HTML artifacts (10 pre-set themes) | [github.com/Prat011/awesome-llm-skills/theme-factory](https://github.com/Prat011/awesome-llm-skills) |
-| `artifacts-builder` | Multi-component HTML artifacts with React, Tailwind, shadcn/ui | [github.com/Prat011/awesome-llm-skills/artifacts-builder](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `ux-ui-pro-max` | Full UX/UI system: component hierarchy, accessibility rules, responsive patterns, interaction design | `.claude/skills/ux-ui-pro-max/` — search [awesomeclaude.ai](https://awesomeclaude.ai/awesome-claude-skills) |
+| `website-building` | Production-grade web design: design tokens, typography, motion, CSS/Tailwind, anti-patterns | Perplexity built-in → `load_skill("website-building")` |
+| `frontend-design` | Web components, pages, artifacts with modern frontend design principles | [raw.githubusercontent.com/anthropics/claude-code-skills/main/frontend-design/SKILL.md](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/frontend-design/SKILL.md) |
+| `artifacts-builder` | Multi-component HTML artifacts with React, Tailwind, shadcn/ui | [github.com/Prat011/awesome-llm-skills/artifacts-builder](https://github.com/Prat011/awesome-llm-skills/tree/main/artifacts-builder) |
+| `canvas-design` | Visual art in PNG/PDF: posters, static design pieces using aesthetic principles | [github.com/Prat011/awesome-llm-skills/canvas-design](https://github.com/Prat011/awesome-llm-skills/tree/main/canvas-design) |
+| `theme-factory` | Applies font/color themes to slides, docs, reports, HTML artifacts (10 pre-set themes) | [github.com/Prat011/awesome-llm-skills/theme-factory](https://github.com/Prat011/awesome-llm-skills/tree/main/theme-factory) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -124,14 +234,65 @@ Each category lists: what skills cover it, which Ritroso files they inject into,
 
 ---
 
-##### CATEGORY: `brand-styleguide`
-**What it covers**: Brand identity, logo rules, color palette enforcement, typography standards, tone of voice, do/don't examples.
+##### CATEGORY: `frontend-framework`
+**What it covers**: React, Next.js, Vue, Svelte, Tailwind — framework-specific patterns,
+component generators, routing, state management, CSS migrations.
+
+**Recommended skills** (pick the framework stack in use):
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `react-component-generator` | Scaffolds React components with TypeScript, tests, stories, correct file structure | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `nextjs-patterns` | Next.js App Router: server components, route handlers, middleware, metadata API | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `tailwind-converter` | Converts CSS to Tailwind utility classes preserving responsive behavior | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `vue-composition-api` | Vue 3 components: Composition API, TypeScript, composables, Pinia stores | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `svelte-5-patterns` | Svelte 5: runes, snippets, new event system | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `css-to-styled-components` | Migrates CSS to styled-components with theme support and TypeScript | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+
+**Injection targets**:
+| Ritroso File | What gets injected |
+|---|---|
+| `05_COMPONENTS.md` | Framework stack named; component conventions extracted from skill |
+| `08_LIMITS.md` | Framework anti-patterns become hard limits |
+| `03_NEXT_STEPS.md` | Component scaffold step added to P1 with named framework |
+
+---
+
+##### CATEGORY: `api-backend`
+**What it covers**: REST API design, GraphQL schemas, gRPC, authentication flows,
+CRUD generation, real-time sync, backend architecture patterns.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `brand-guidelines` | Applies brand colors and typography to artifacts for consistent visual identity | [github.com/Prat011/awesome-llm-skills/brand-guidelines](https://github.com/Prat011/awesome-llm-skills) |
-| `ponytail` | Visual brand system: color tokens, type scale, spacing, brand voice rules | Search `.claude/skills/ponytail/` |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `api-design` | REST APIs with OpenAPI specs, error handling, pagination, authentication | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `graphql-schema` | GraphQL schemas with resolvers, data loaders, subscriptions, N+1 prevention | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `grpc-service` | gRPC definitions: Protocol Buffer schemas, server implementations, client stubs | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `crud-generator` | Complete CRUD across frontend/backend/DB with validation and error handling | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `auth-flow` | Auth flows: OAuth 2.0, JWT, session management, MFA, password reset | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+| `realtime-sync` | Real-time data: WebSockets, SSE, polling with conflict resolution | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
+
+**Injection targets**:
+| Ritroso File | What gets injected |
+|---|---|
+| `04_ELEMENTS.md` | API layer, auth, and real-time (if needed) as Critical (P1) |
+| `05_COMPONENTS.md` | API design pattern and authentication flow named explicitly |
+| `08_LIMITS.md` | Auth anti-patterns become hard limits |
+| `10_ERROR.md` | Backend risks: no rate limiting, JWT secret in env, N+1 queries |
+
+---
+
+##### CATEGORY: `brand-styleguide`
+**What it covers**: Brand identity, logo rules, color palette enforcement, typography standards,
+tone of voice, do/don't examples.
+
+**Recommended skills**:
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `brand-guidelines` | Applies brand colors and typography to artifacts for consistent visual identity | [github.com/Prat011/awesome-llm-skills/brand-guidelines](https://github.com/Prat011/awesome-llm-skills/tree/main/brand-guidelines) |
+| `ponytail` | Visual brand system: color tokens, type scale, spacing, brand voice rules | `.claude/skills/ponytail/` — search [awesomeclaude.ai](https://awesomeclaude.ai/awesome-claude-skills) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -144,14 +305,16 @@ Each category lists: what skills cover it, which Ritroso files they inject into,
 ---
 
 ##### CATEGORY: `copywriting-content`
-**What it covers**: Tone of voice, messaging hierarchy, UX writing, CTAs, headline formulas, content strategy, editorial guidelines.
+**What it covers**: Tone of voice, messaging hierarchy, UX writing, CTAs, headline formulas,
+content strategy, editorial guidelines.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `content-research-writer` | Writes high-quality content with research, citations, hooks, section-by-section feedback | [github.com/Prat011/awesome-llm-skills/content-research-writer](https://github.com/Prat011/awesome-llm-skills) |
-| `internal-comms` | Internal communications: 3P updates, newsletters, FAQs, status reports | [github.com/Prat011/awesome-llm-skills/internal-comms](https://github.com/Prat011/awesome-llm-skills) |
-| `brainstorming` | Transforms rough ideas into structured designs through alternative exploration | [github.com/Prat011/awesome-llm-skills/brainstorming](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `content-research-writer` | High-quality content with research, citations, hooks, section feedback | [github.com/Prat011/awesome-llm-skills/content-research-writer](https://github.com/Prat011/awesome-llm-skills/tree/main/content-research-writer) |
+| `brainstorming` | Transforms rough ideas into structured designs through alternative exploration | [github.com/Prat011/awesome-llm-skills/brainstorming](https://github.com/Prat011/awesome-llm-skills/tree/main/brainstorming) |
+| `internal-comms` | Internal communications: 3P updates, newsletters, FAQs, status reports | [github.com/Prat011/awesome-llm-skills/internal-comms](https://github.com/Prat011/awesome-llm-skills/tree/main/internal-comms) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -165,38 +328,43 @@ Each category lists: what skills cover it, which Ritroso files they inject into,
 ---
 
 ##### CATEGORY: `marketing-growth`
-**What it covers**: Go-to-market, positioning, channel strategy, funnel design, acquisition, competitive analysis, SEO, lead research.
+**What it covers**: Go-to-market, positioning, channel strategy, funnel design, acquisition,
+competitive analysis, SEO, lead research, B2B evaluation.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `lead-research-assistant` | Identifies and qualifies leads by analyzing your product and target companies | [github.com/Prat011/awesome-llm-skills/lead-research-assistant](https://github.com/Prat011/awesome-llm-skills) |
-| `competitive-ads-extractor` | Extracts and analyzes competitors' ads to understand resonant messaging and creatives | [github.com/Prat011/awesome-llm-skills/competitive-ads-extractor](https://github.com/Prat011/awesome-llm-skills) |
-| `domain-name-brainstormer` | Generates domain ideas and checks availability across .com, .io, .dev, .ai | [github.com/Prat011/awesome-llm-skills/domain-name-brainstormer](https://github.com/Prat011/awesome-llm-skills) |
-| `buyer-eval-skill` | B2B vendor evaluation: scores vendors across 7 dimensions, produces scorecards | [github.com/Prat011/awesome-llm-skills/buyer-eval-skill](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `lead-research-assistant` | Identifies and qualifies leads by analyzing product and target companies | [github.com/Prat011/awesome-llm-skills/lead-research-assistant](https://github.com/Prat011/awesome-llm-skills/tree/main/lead-research-assistant) |
+| `competitive-ads-extractor` | Extracts and analyzes competitors' ads: resonant messaging and creatives | [github.com/Prat011/awesome-llm-skills/competitive-ads-extractor](https://github.com/Prat011/awesome-llm-skills/tree/main/competitive-ads-extractor) |
+| `domain-name-brainstormer` | Domain ideas + availability check across .com .io .dev .ai | [github.com/Prat011/awesome-llm-skills/domain-name-brainstormer](https://github.com/Prat011/awesome-llm-skills/tree/main/domain-name-brainstormer) |
+| `buyer-eval-skill` | B2B vendor evaluation: scores vendors across 7 dimensions, produces scorecards | [github.com/Prat011/awesome-llm-skills/buyer-eval-skill](https://github.com/Prat011/awesome-llm-skills/tree/main/buyer-eval-skill) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
 |---|---|
 | `01_GOAL.md` | Market positioning and target segment from skill's framework |
 | `02_PRODUCT.md` | Funnel stages mapped to product phases (P1 = acquisition hook, P2 = retention) |
-| `03_NEXT_STEPS.md` | Launch checklist steps become named P2 items (SEO, analytics, channel setup) |
+| `03_NEXT_STEPS.md` | Launch checklist: SEO, analytics, channel setup as named P2 items |
 | `06_PRICE.md` | Pricing strategy informed by positioning framework |
 | `07_BUDGET.md` | Marketing budget added as a separate cost line |
 | `10_ERROR.md` | Marketing risks: no analytics day 1, no acquisition channel, no retention hook |
-| `12_ASKED.md` | Open questions: Who is the ICP? What is the acquisition channel? What is the retention hook? |
+| `12_ASKED.md` | Open questions: ICP? Acquisition channel? Retention hook? |
 
 ---
 
 ##### CATEGORY: `security-defensive`
-**What it covers**: Threat modeling, OWASP, input validation, authentication, authorization, secrets management, dependency audits.
+**What it covers**: Threat modeling, OWASP, input validation, authentication, authorization,
+secrets management, dependency audits, SAST.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `webapp-testing` | Tests local web apps via Playwright: frontend functionality, UI behavior, screenshots | [github.com/Prat011/awesome-llm-skills/webapp-testing](https://github.com/Prat011/awesome-llm-skills) |
-| `threat-hunting-with-sigma-rules` | Uses Sigma detection rules to hunt for threats and analyze security events | [github.com/Prat011/awesome-llm-skills/threat-hunting-with-sigma-rules](https://github.com/Prat011/awesome-llm-skills) |
-| `postgres` (security mode) | Read-only SQL with defense-in-depth: multi-connection support, safe query patterns | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `webapp-testing` | Playwright-based testing: frontend functionality, UI behavior, screenshots | [github.com/Prat011/awesome-llm-skills/webapp-testing](https://github.com/Prat011/awesome-llm-skills/tree/main/webapp-testing) |
+| `threat-hunting-with-sigma-rules` | Sigma detection rules to hunt for threats and analyze security events | [github.com/Prat011/awesome-llm-skills/threat-hunting-with-sigma-rules](https://github.com/Prat011/awesome-llm-skills/tree/main/threat-hunting-with-sigma-rules) |
+| `llm-sast-scanner` | SAST for 34 vulnerability classes across Java/Python/JS/TS/PHP/.NET | [github.com/gmh5225/awesome-skills](https://github.com/gmh5225/awesome-skills) |
+| `auth-flow` | Auth implementation: OAuth 2.0, JWT, MFA, session management | [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -211,15 +379,17 @@ Each category lists: what skills cover it, which Ritroso files they inject into,
 ---
 
 ##### CATEGORY: `security-offensive`
-**What it covers**: Penetration testing, attack simulation, deepfake detection, vulnerability research, digital forensics.
+**What it covers**: Penetration testing, attack simulation, deepfake detection,
+vulnerability research, digital forensics, fuzzing.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `resemble-detect` | Detects deepfakes in audio/image/video/text with confidence scores, voice-profile verification | [github.com/Prat011/awesome-llm-skills/resemble-detect](https://github.com/Prat011/awesome-llm-skills) |
-| `computer-forensics` | Digital forensics analysis and investigation techniques | [github.com/Prat011/awesome-llm-skills/computer-forensics](https://github.com/Prat011/awesome-llm-skills) |
-| `metadata-extraction` | Extracts and analyzes file metadata for forensic purposes | [github.com/Prat011/awesome-llm-skills/metadata-extraction](https://github.com/Prat011/awesome-llm-skills) |
-| `ffuf-web-fuzzing` | Integrates ffuf web fuzzer for Claude to run fuzzing tasks and analyze vulnerabilities | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `resemble-detect` | Deepfake detection in audio/image/video/text with confidence scores, voice-profile verification | [github.com/Prat011/awesome-llm-skills/resemble-detect](https://github.com/Prat011/awesome-llm-skills/tree/main/resemble-detect) |
+| `computer-forensics` | Digital forensics analysis and investigation techniques | [github.com/Prat011/awesome-llm-skills/computer-forensics](https://github.com/Prat011/awesome-llm-skills/tree/main/computer-forensics) |
+| `metadata-extraction` | Extracts and analyzes file metadata for forensic purposes | [github.com/Prat011/awesome-llm-skills/metadata-extraction](https://github.com/Prat011/awesome-llm-skills/tree/main/metadata-extraction) |
+| `ffuf-web-fuzzing` | Integrates ffuf web fuzzer: fuzzing tasks and vulnerability analysis | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -235,15 +405,19 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 ---
 
 ##### CATEGORY: `testing-qa`
-**What it covers**: Test-driven development, Playwright automation, unit tests, integration tests, test case design.
+**What it covers**: Test-driven development, Playwright automation, unit tests,
+integration tests, E2E tests, test case design, pairwise testing.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `test-driven-development` | TDD workflow: use before writing implementation code for any feature or bugfix | [github.com/Prat011/awesome-llm-skills/test-driven-development](https://github.com/Prat011/awesome-llm-skills) |
-| `webapp-testing` | Playwright-based testing for local web apps | [github.com/Prat011/awesome-llm-skills/webapp-testing](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `test-driven-development` | TDD workflow: use before writing implementation code for any feature/bugfix | [github.com/Prat011/awesome-llm-skills/test-driven-development](https://github.com/Prat011/awesome-llm-skills/tree/main/test-driven-development) |
+| `tdd-guide` | Enforces RED-GREEN-REFACTOR cycle; blocks implementation without failing test first | [claude-codex.fr/skills/tdd-guide](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/tdd/SKILL.md) |
+| `webapp-testing` | Playwright-based testing for local web apps | [github.com/Prat011/awesome-llm-skills/webapp-testing](https://github.com/Prat011/awesome-llm-skills/tree/main/webapp-testing) |
 | `pypict-claude-skill` | Pairwise combinatorial test cases (PICT) for requirements and code | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `root-cause-tracing` | Traces errors deep in execution back to the original trigger | [github.com/Prat011/awesome-llm-skills/root-cause-tracing](https://github.com/Prat011/awesome-llm-skills) |
+| `root-cause-tracing` | Traces errors deep in execution back to the original trigger | [github.com/Prat011/awesome-llm-skills/root-cause-tracing](https://github.com/Prat011/awesome-llm-skills/tree/main/root-cause-tracing) |
+| `browser-automation` | Browser automation with Playwright and Puppeteer | [github.com/VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -255,14 +429,17 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 ---
 
 ##### CATEGORY: `data-analytics`
-**What it covers**: Data modeling, event tracking, analytics instrumentation, dashboards, privacy compliance (GDPR, CCPA).
+**What it covers**: Data modeling, event tracking, analytics instrumentation, dashboards,
+privacy compliance (GDPR, CCPA), data pipelines.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
 | `csv-data-summarizer` | Analyzes CSV files and generates insights with visualizations automatically | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `d3js-visualization` | Produces D3 charts and interactive data visualizations | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `meeting-insights-analyzer` | Analyzes meeting transcripts for behavioral patterns, speaking ratios, leadership style | [github.com/Prat011/awesome-llm-skills/meeting-insights-analyzer](https://github.com/Prat011/awesome-llm-skills) |
+| `d3js-visualization` | D3 charts and interactive data visualizations | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
+| `meeting-insights-analyzer` | Analyzes meeting transcripts for behavioral patterns, speaking ratios, leadership style | [github.com/Prat011/awesome-llm-skills/meeting-insights-analyzer](https://github.com/Prat011/awesome-llm-skills/tree/main/meeting-insights-analyzer) |
+| `postgres` | Read-only SQL with defense-in-depth: multi-connection support, safe query patterns | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -276,13 +453,15 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 ---
 
 ##### CATEGORY: `document-writing`
-**What it covers**: Technical writing standards, README templates, proposal formats, report layouts, EPUB generation.
+**What it covers**: Technical writing standards, README templates, proposal formats,
+report layouts, EPUB generation, Word/PDF/Markdown output.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `doc` (docx) | Create, edit, analyze Word docs with tracked changes, comments, formatting | [Perplexity built-in — load via `load_skill("doc")`] |
-| `pdf` | Extract text, tables, metadata, merge and annotate PDFs | [Perplexity built-in — load via `load_skill("pdf")`] |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `docx` | Create, edit, analyze Word docs with tracked changes, comments, formatting | Anthropic built-in → `load_skill("doc")` |
+| `pdf` | Extract text, tables, metadata, merge and annotate PDFs | Anthropic built-in → `load_skill("pdf")` |
 | `markdown-to-epub` | Converts markdown and chat summaries into professional EPUB ebooks | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
 
 **Injection targets**:
@@ -295,13 +474,15 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 ---
 
 ##### CATEGORY: `financial-spreadsheet`
-**What it covers**: Financial modeling, cost tracking, pricing calculators, budget templates, scenario planning.
+**What it covers**: Financial modeling, cost tracking, pricing calculators,
+budget templates, scenario planning.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `xlsx` | Spreadsheet manipulation: formulas, charts, data transformations | [Perplexity built-in — load via `load_skill("xlsx")`] |
-| `invoice-organizer` | Organizes invoices and receipts for tax preparation by extracting and renaming consistently | [github.com/Prat011/awesome-llm-skills/invoice-organizer](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `xlsx` | Spreadsheet manipulation: formulas, charts, data transformations | Anthropic built-in → `load_skill("xlsx")` |
+| `invoice-organizer` | Organizes invoices and receipts for tax preparation by extracting and renaming consistently | [github.com/Prat011/awesome-llm-skills/invoice-organizer](https://github.com/Prat011/awesome-llm-skills/tree/main/invoice-organizer) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -312,12 +493,14 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 ---
 
 ##### CATEGORY: `presentation-slides`
-**What it covers**: Presentation structure, pitch deck formulas, slide design, storytelling frameworks.
+**What it covers**: Presentation structure, pitch deck formulas, slide design,
+storytelling frameworks.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `pptx` | Read, generate, adjust slides, layouts, templates | [Perplexity built-in — load via `load_skill("pptx")`] |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `pptx` | Read, generate, adjust slides, layouts, templates | Anthropic built-in → `load_skill("pptx")` |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -328,13 +511,16 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 ---
 
 ##### CATEGORY: `data-visualization`
-**What it covers**: Chart type selection, data viz principles, color in charts, accessibility for data displays.
+**What it covers**: Chart type selection, data viz principles, color in charts,
+accessibility for data displays, interactive visualizations.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `chart` | Plotly and Mermaid charts: pie, line, scatter, bar, theming, PNG output | [Perplexity built-in — load via `load_skill("chart")`] |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `chart` | Plotly and Mermaid charts: pie, line, scatter, bar, theming, PNG output | Perplexity built-in → `load_skill("chart")` |
 | `d3js-visualization` | D3 charts and interactive data visualizations | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
+| `algorithmic-art` | Generative art: parametric visuals, creative coding, canvas patterns | [github.com/Prat011/awesome-llm-skills/algorithmic-art](https://github.com/Prat011/awesome-llm-skills/tree/main/algorithmic-art) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -346,15 +532,18 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 ---
 
 ##### CATEGORY: `ai-agents-mcp`
-**What it covers**: Multi-agent orchestration, MCP server building, agent workflow design, LLM skill creation.
+**What it covers**: Multi-agent orchestration, MCP server building, agent workflow design,
+LLM skill creation, parallel execution, subagent integration.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `mcp-builder` | Guides creation of high-quality MCP servers for integrating external APIs with LLMs | [github.com/Prat011/awesome-llm-skills/mcp-builder](https://github.com/Prat011/awesome-llm-skills) |
-| `skill-creator` | Guidance for creating effective Claude Skills with specialized workflows and tool integrations | [github.com/Prat011/awesome-llm-skills/skill-creator](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `mcp-builder` | Guides creation of high-quality MCP servers for integrating external APIs with LLMs | [github.com/Prat011/awesome-llm-skills/mcp-builder](https://github.com/Prat011/awesome-llm-skills/tree/main/mcp-builder) |
+| `skill-creator` | Guidance for creating effective Claude Skills with specialized workflows and tool integrations | [github.com/Prat011/awesome-llm-skills/skill-creator](https://github.com/Prat011/awesome-llm-skills/tree/main/skill-creator) |
 | `maestro-orchestrate` | Multi-agent orchestration: 22 specialized agents, 4-phase workflows, parallel execution | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `blueprint` | Spec-driven development: natural language → blueprints → parallel build plans → working software | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
+| `blueprint` | Spec-driven dev: natural language → blueprints → parallel build plans → software | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
+| `skill-seekers` | Converts any documentation website into a Claude skill automatically | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -366,15 +555,18 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 ---
 
 ##### CATEGORY: `git-devops`
-**What it covers**: Git workflows, branch management, CI/CD, deployment pipelines, worktrees, code review.
+**What it covers**: Git workflows, branch management, CI/CD, deployment pipelines,
+worktrees, code review, release management.
 
 **Recommended skills**:
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| `git-pushing` | Automates git operations and repository interactions | [github.com/Prat011/awesome-llm-skills/git-pushing](https://github.com/Prat011/awesome-llm-skills) |
-| `using-git-worktrees` | Creates isolated git worktrees with smart directory selection and safety verification | [github.com/Prat011/awesome-llm-skills/using-git-worktrees](https://github.com/Prat011/awesome-llm-skills) |
-| `finishing-a-development-branch` | Guides completion of dev work: presents clear options and handles chosen workflow | [github.com/Prat011/awesome-llm-skills/finishing-a-development-branch](https://github.com/Prat011/awesome-llm-skills) |
-| `review-implementing` | Evaluates code implementation plans and aligns with specs | [github.com/Prat011/awesome-llm-skills/review-implementing](https://github.com/Prat011/awesome-llm-skills) |
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `git-pushing` | Automates git operations and repository interactions | [github.com/Prat011/awesome-llm-skills/git-pushing](https://github.com/Prat011/awesome-llm-skills/tree/main/git-pushing) |
+| `using-git-worktrees` | Creates isolated git worktrees with smart directory selection and safety verification | [github.com/Prat011/awesome-llm-skills/using-git-worktrees](https://github.com/Prat011/awesome-llm-skills/tree/main/using-git-worktrees) |
+| `finishing-a-development-branch` | Guides completion of dev work: presents clear options and handles chosen workflow | [github.com/Prat011/awesome-llm-skills/finishing-a-development-branch](https://github.com/Prat011/awesome-llm-skills/tree/main/finishing-a-development-branch) |
+| `review-implementing` | Evaluates code implementation plans and aligns with specs | [github.com/Prat011/awesome-llm-skills/review-implementing](https://github.com/Prat011/awesome-llm-skills/tree/main/review-implementing) |
+| `deploy-checklist` | Guides production deployment: checklist-driven pre-flight before any release | [claude-codex.fr/skills/deploy-checklist](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/deploy/SKILL.md) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -385,31 +577,82 @@ Format: `[ATTACK-N] Vector: X. Entry point: Y. Impact: Z. Mitigation required in
 
 ---
 
+##### CATEGORY: `productivity-automation`
+**What it covers**: File organization, workflow automation, meeting intelligence,
+knowledge capture, Notion integration, task management.
+
+**Recommended skills**:
+
+| Skill | What it does | URL / Install |
+|-------|-------------|---------------|
+| `file-organizer` | Intelligently organizes files/folders: finds duplicates, suggests better structures | [github.com/Prat011/awesome-llm-skills/file-organizer](https://github.com/Prat011/awesome-llm-skills/tree/main/file-organizer) |
+| `notion-spec-to-implementation` | Turns Notion specs into task plans with acceptance criteria and progress tracking | [github.com/Prat011/awesome-llm-skills/notion-spec-to-implementation](https://github.com/Prat011/awesome-llm-skills/tree/main/notion-spec-to-implementation) |
+| `notion-knowledge-capture` | Converts chats and decisions into structured Notion pages and database entries | [github.com/Prat011/awesome-llm-skills/notion-knowledge-capture](https://github.com/Prat011/awesome-llm-skills/tree/main/notion-knowledge-capture) |
+| `tapestry` | Interlinks and summarizes related documents into knowledge networks | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
+
+**Injection targets**:
+| Ritroso File | What gets injected |
+|---|---|
+| `09_AGENTS.md` | Workflow owner and knowledge management tool named |
+| `03_NEXT_STEPS.md` | Automation and knowledge capture steps added per phase |
+
+---
+
 #### 0.4.3 — Skill Install Instructions
 
 > Include these verbatim in `00_INDEX.md` for every ABSENT recommended skill.
 
-**For Claude Code (project-level):**
+**Method A — Clone the entire awesome-llm-skills repo (recommended for multiple skills):**
 ```bash
+# macOS / Linux
+git clone https://github.com/Prat011/awesome-llm-skills /tmp/awesome-llm-skills
+cp -r /tmp/awesome-llm-skills/[skill-name] ~/.claude/skills/[skill-name]
+
+# Windows PowerShell
+git clone https://github.com/Prat011/awesome-llm-skills $env:TEMP\awesome-llm-skills
+Copy-Item -Recurse "$env:TEMP\awesome-llm-skills\[skill-name]" "$env:USERPROFILE\.claude\skills\[skill-name]"
+```
+
+**Method B — Download a single SKILL.md directly (no git required):**
+```bash
+# macOS / Linux (project-level)
 mkdir -p .claude/skills/[skill-name]
-# Download SKILL.md from the awesome-llm-skills repo into this folder
-# Claude Code auto-discovers skills from .claude/skills/
-```
+curl -o .claude/skills/[skill-name]/SKILL.md \
+  https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/[skill-name]/SKILL.md
 
-**For Claude Code (user-level, available across all projects):**
-```bash
+# macOS / Linux (user-level, available across all projects)
 mkdir -p ~/.claude/skills/[skill-name]
-# Download SKILL.md into this folder
+curl -o ~/.claude/skills/[skill-name]/SKILL.md \
+  https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/[skill-name]/SKILL.md
+
+# Windows PowerShell (user-level)
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills\[skill-name]"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/[skill-name]/SKILL.md" `
+  -OutFile "$env:USERPROFILE\.claude\skills\[skill-name]\SKILL.md"
 ```
 
-**For Perplexity built-in skills** (chart, website-building, doc, pdf, pptx, xlsx):
+**Method C — Paste into context (no install needed):**
+```
+# Open the raw SKILL.md URL in your browser:
+https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/[skill-name]/SKILL.md
+# Copy the content and paste it into your Claude/Gemini/Codex session
+# The agent will treat it as ACTIVE immediately
+```
+
+**For Perplexity or Anthropic built-in skills** (chart, website-building, doc, pdf, pptx, xlsx):
 ```
 # No install needed — call load_skill("skill-name") in the prompt
 # Example: "Load the website-building skill and use it to design the UI"
 ```
 
-**Source repository for all community skills:**
-[github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills)
+**Skill discovery resources:**
+- [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) — primary curated list
+- [awesomeclaude.ai/awesome-claude-skills](https://awesomeclaude.ai/awesome-claude-skills) — 204+ skills browsable by category
+- [github.com/mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills) — framework-specific skills
+- [github.com/VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) — 1000+ agent skills
+- [github.com/gmh5225/awesome-skills](https://github.com/gmh5225/awesome-skills) — security-focused catalog
+- [claudskills.com](https://claudskills.com) — 188k+ SKILL.md files crawled from GitHub
+- [mastering-claude.com/skills](https://mastering-claude.com/skills/) — 297 curated skills directory
 
 ---
 
@@ -417,45 +660,77 @@ mkdir -p ~/.claude/skills/[skill-name]
 
 These rules govern HOW injection works. They are mandatory.
 
-1. **Inject rules, not pointers.** Never write "refer to skill X for design rules." Extract the operative rules and write them inline in the target file under `## Injected Rules — [skill-name]`.
+1. **Inject rules, not pointers.** Never write "refer to skill X for design rules." Extract the
+   operative rules and write them inline in the target file under `## Injected Rules — [skill-name]`.
 
-2. **Never block generation** because a skill is absent. Absent skill = recommendation in `00_INDEX.md` with install instructions. Present skill = injection into target files.
+2. **Never block generation** because a skill is absent. Absent skill = recommendation in
+   `00_INDEX.md` with install instructions. Present skill = injection into target files.
 
-3. **Tag every injected rule** with `[SKILL:skill-name]`. This makes injected rules traceable and auditable.
+3. **Tag every injected rule** with `[SKILL:skill-name]`. This makes injected rules traceable
+   and auditable.
 
-4. **Injected rules are treated as project rules** during Phase 2 (Panel of Agents). The Panel checks injected rules the same way it checks native project rules.
+4. **Injected rules are treated as project rules** during Phase 2 (Panel of Agents). The Panel
+   checks injected rules the same way it checks native project rules.
 
-5. **Conflict between two injected skills**: flag as `[SKILL-CONFLICT: skill-a vs skill-b]` in `11_INTERPOLATION.md`. Surface to user in `12_ASKED.md`. Do not silently resolve.
+5. **Conflict between two injected skills**: flag as `[SKILL-CONFLICT: skill-a vs skill-b]`
+   in `11_INTERPOLATION.md`. Surface to user in `12_ASKED.md`. Do not silently resolve.
 
-6. **Injected rules in `08_LIMITS.md` are always Hard Limits**, regardless of how they are classified in the source skill.
+6. **Injected rules in `08_LIMITS.md` are always Hard Limits**, regardless of how they are
+   classified in the source skill.
 
-7. **Document all active skills in `00_INDEX.md`** under `## Skill Stack — Active`. For each: skill name, category, files injected into, number of rules injected.
+7. **Document all active skills in `00_INDEX.md`** under `## Skill Stack — Active`. For each:
+   skill name, category, files injected into, number of rules injected.
 
-8. **Non-redundancy check**: if two recommended skills cover the same function (e.g. `webapp-testing` and `playwright-automation`), recommend only the most capable one. Never recommend redundant pairs.
+8. **Non-redundancy check**: if two recommended skills cover the same function (e.g.
+   `webapp-testing` and `playwright-automation`), recommend only the most capable one.
+   Never recommend redundant pairs.
+
+9. **User skills take precedence**: if the user has a custom or non-catalog skill that covers
+   the same category as a recommended skill, do NOT also recommend the catalog skill. List
+   the user's skill as ACTIVE in the INDEX and skip the recommendation for that category.
+
+10. **Discovery result must be reported**: always report the discovery method used
+    (Method 1/2/3/4) and the paths scanned in `00_INDEX.md` under `## Skill Discovery Log`.
 
 ---
 
 #### 0.4.5 — Skill Stack section in 00_INDEX.md (template)
 
 ```markdown
+## Skill Discovery Log
+- Method used: [1-Context / 2-Direct path / 3-Grep / 4-Inference]
+- OS detected: [Windows / macOS / Linux / Unknown]
+- Paths scanned:
+  - `~/.claude/skills/` → [found N folders / access denied / not found]
+  - `<project>/.claude/skills/` → [found N folders / not found]
+  - [other paths checked]
+- Grep fallback: [ran / not needed / access denied]
+- Custom skills found: [N user-defined SKILL.md files / none]
+
 ## Skill Stack
 
-### Active Skills — Detected in context and injected
-| Skill | Category | Injected Into | Rules Injected |
-|-------|----------|---------------|----------------|
-| [skill-name] | [category] | [file list] | [N rules] |
+### Active Skills — Detected and injected
+| Skill | Source | Category | Injected Into | Rules Injected |
+|-------|--------|----------|---------------|----------------|
+| [skill-name] | [path or "context"] | [category] | [file list] | [N rules] |
+
+### Probable Skills — Inferred but not verified
+| Skill | Evidence | Category | Action needed |
+|-------|----------|----------|---------------|
+| [skill-name] | [where inferred from] | [category] | Install or paste SKILL.md |
 
 ### Recommended Skills — Not detected, relevant to this project
 | Skill | Category | What it would inject | Install |
 |-------|----------|---------------------|---------|
-| `impeccable` | code-quality | Coding standards → 05_COMPONENTS, 08_LIMITS | `.claude/skills/impeccable/` from [awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `ux-ui-pro-max` | ui-ux-design | Design system, accessibility → 05_COMPONENTS, 08_LIMITS | `.claude/skills/ux-ui-pro-max/` |
-| `brand-guidelines` | brand-styleguide | Brand tokens → 05_COMPONENTS, 08_LIMITS | `.claude/skills/brand-guidelines/` from [awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `content-research-writer` | copywriting-content | Tone rules, hooks → 01_GOAL, 02_PRODUCT | `.claude/skills/content-research-writer/` from [awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `competitive-ads-extractor` | marketing-growth | GTM, channel strategy → 03_NEXT_STEPS, 07_BUDGET | `.claude/skills/competitive-ads-extractor/` from [awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `threat-hunting-with-sigma-rules` | security-defensive | Attack vectors → 08_LIMITS, 10_ERROR | `.claude/skills/threat-hunting-with-sigma-rules/` from [awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `test-driven-development` | testing-qa | Test requirements → 03_NEXT_STEPS, 05_COMPONENTS | `.claude/skills/test-driven-development/` from [awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
-| `mcp-builder` | ai-agents-mcp | Agent architecture → 05_COMPONENTS, 09_AGENTS | `.claude/skills/mcp-builder/` from [awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
+| `impeccable` | code-quality | Coding standards → 05_COMPONENTS, 08_LIMITS | [Method B](https://raw.githubusercontent.com/pbakaus/impeccable/main/SKILL.md) |
+| `ux-ui-pro-max` | ui-ux-design | Design system, accessibility → 05_COMPONENTS, 08_LIMITS | `.claude/skills/ux-ui-pro-max/` from [awesomeclaude.ai](https://awesomeclaude.ai/awesome-claude-skills) |
+| `brand-guidelines` | brand-styleguide | Brand tokens → 05_COMPONENTS, 08_LIMITS | [Method B](https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/brand-guidelines/SKILL.md) |
+| `content-research-writer` | copywriting | Tone rules, hooks → 01_GOAL, 02_PRODUCT | [Method B](https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/content-research-writer/SKILL.md) |
+| `competitive-ads-extractor` | marketing-growth | GTM, channel → 03_NEXT_STEPS, 07_BUDGET | [Method B](https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/competitive-ads-extractor/SKILL.md) |
+| `threat-hunting-with-sigma-rules` | security-defensive | Attack vectors → 08_LIMITS, 10_ERROR | [Method B](https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/threat-hunting-with-sigma-rules/SKILL.md) |
+| `test-driven-development` | testing-qa | Test requirements → 03_NEXT_STEPS, 05_COMPONENTS | [Method B](https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/test-driven-development/SKILL.md) |
+| `mcp-builder` | ai-agents-mcp | Agent architecture → 05_COMPONENTS, 09_AGENTS | [Method B](https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/mcp-builder/SKILL.md) |
+| `git-pushing` | git-devops | Git workflow → 03_NEXT_STEPS, 09_AGENTS | [Method B](https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/git-pushing/SKILL.md) |
 ```
 
 ---
@@ -548,7 +823,7 @@ Rules:
 - BLOCK if an `[ASSUMED-NO-BASIS]` item has no risk entry
 - BLOCK if negative verification has not been run
 - BLOCK if 08_LIMITS has a hard limit violated in 03_NEXT_STEPS
-- BLOCK if a security skill (`threat-hunting-with-sigma-rules`, `resemble-detect`, etc.) is active and no High-impact risk appears in 10_ERROR
+- BLOCK if a security skill (`threat-hunting-with-sigma-rules`, `resemble-detect`, `llm-sast-scanner`, etc.) is active and no High-impact risk appears in 10_ERROR
 - NOTE if all risks are Medium/Low
 - NOTE if no decision owner exists for the highest-impact trade-off
 
@@ -577,7 +852,7 @@ Add `## Skippability Risk` to 03_NEXT_STEPS.
 For every `[ASSUMED-NO-BASIS]`: "If wrong, which files must be rewritten?"
 List affected files explicitly.
 
-### Step 3.5 — Skill injection attack (v1.2)
+### Step 3.5 — Skill injection attack
 For every injected rule tagged `[SKILL:*]`, ask:
 > "Is this rule actually followed in the file it was injected into?"
 > "Does any injected rule contradict a native project rule?"
@@ -607,14 +882,15 @@ After all other 12 files are closed and verified.
 - Skill conflicts: N (list [SKILL-CONFLICT] IDs or NONE)
 - ASSUMED-NO-BASIS items: N (list or NONE)
 
+## Skill Discovery Log
+[see §0.4.5 template]
+
 ## Skill Stack
 ### Active Skills — Detected and injected
-| Skill | Category | Injected Into | Rules Injected |
-|-------|----------|---------------|----------------|
+[see §0.4.5 template]
 
 ### Recommended Skills — Not detected
-| Skill | Category | What it would inject | Install |
-|-------|----------|---------------------|---------|
+[see §0.4.5 template]
 ```
 
 ### Step 4.3 — Do not mark RITROSO-VERIFIED if:
@@ -623,6 +899,7 @@ After all other 12 files are closed and verified.
 - Any injected `[SKILL:*]` security rule is not present in 08_LIMITS or 10_ERROR
 - Any `[SKILL-CONFLICT]` is unresolved in 11_INTERPOLATION
 - Any P1 step depends on an unresolved OPEN
+- Skill Discovery Log is missing from 00_INDEX.md
 
 ---
 
@@ -657,87 +934,4 @@ After all other 12 files are closed and verified.
 - R-PRICE-1: TBD price requires a decision deadline.
 - R-PRICE-2: Price model consistent with 01_GOAL.
 
-### Rules from 07_BUDGET
-- R-BUDG-1: All estimates are ranges.
-- R-BUDG-2: Variable costs separated from fixed costs.
-- R-BUDG-3: Budget reality check question included.
-
-### Rules from 08_LIMITS
-- R-LIM-1: Every hard limit states the reason.
-- R-LIM-2: At least 3 anti-patterns.
-- R-LIM-3: Limit conflicting with a goal = `[GOAL-CONFLICT]` in 11_INTERPOLATION.
-- R-LIM-4: All injected `[SKILL:*]` limits are treated as Hard Limits, no exceptions.
-
-### Rules from 09_AGENTS
-- R-AGNT-1: Every agent has at least one named decision point.
-- R-AGNT-2: Trade-off owner named by rule.
-- R-AGNT-3: Handoff points explicit.
-
-### Rules from 10_ERROR
-- R-ERR-1: At least one human/process failure mode.
-- R-ERR-2: Every `[ASSUMED-NO-BASIS]` has a risk entry.
-- R-ERR-3: At least one High risk.
-- R-ERR-4: Every risk has Probability and Impact labeled.
-- R-ERR-5: If a security skill is active, at least 3 concrete attack scenarios present.
-
-### Rules from 11_INTERPOLATION
-- R-INTERP-1: Dependency chain is causal (A → B), not a list.
-- R-INTERP-2: Every `[GOAL-CONFLICT]` documented with resolution options.
-- R-INTERP-3: Negative verification findings section mandatory.
-- R-INTERP-4: Every `[SKILL-CONFLICT]` documented with conflicting rules named explicitly.
-
-### Rules from 12_ASKED
-- R-ASKED-1: Every question states which file(s) it blocks.
-- R-ASKED-2: Every assumption tagged `[INFERRED-FROM-TEXT]` or `[ASSUMED-NO-BASIS]`.
-- R-ASKED-3: No open question without a tagged safest assumption.
-- R-ASKED-4: Questions sorted by blocking priority.
-
-### Rules from 00_INDEX
-- R-INDEX-1: Skill Stack section mandatory in all generations.
-- R-INDEX-2: Active and recommended skills never merged into one list.
-- R-INDEX-3: Every recommended skill includes install instructions (path or `load_skill()` call).
-- R-INDEX-4: Non-redundant recommendations only — never recommend two skills that do the same thing.
-
----
-
-## QUICK REFERENCE — GATE SUMMARY
-
-| Gate | Trigger | Action |
-|------|---------|--------|
-| GATE 0 | Structural ambiguities ≥ 2 | Ask one blocking question. Do not generate. |
-| GATE 1 | Goal conflict found | Flag `[GOAL-CONFLICT]`. Do not proceed silently. |
-| GATE 2 | Panel of Agents BLOCK | Regenerate the file. Do not annotate. |
-| GATE 3 | Negative verification BLOCK | Regenerate affected files. |
-| GATE 4 | P1 step needs unresolved OPEN | Remove from P1 or resolve first. |
-| GATE 5 | Injected skill rule violated in target file | Regenerate target file with rule applied. |
-
----
-
-## QUICK REFERENCE — SKILL INJECTION SUMMARY
-
-| Category | Primary Skills | Primary Injection Targets |
-|---|---|---|
-| `code-quality` | `impeccable`, `changelog-generator` | 05_COMPONENTS, 08_LIMITS, 03_NEXT_STEPS |
-| `ui-ux-design` | `ux-ui-pro-max`, `website-building`, `artifacts-builder` | 05_COMPONENTS, 08_LIMITS, 02_PRODUCT |
-| `brand-styleguide` | `brand-guidelines`, `ponytail` | 05_COMPONENTS, 08_LIMITS, 09_AGENTS |
-| `copywriting-content` | `content-research-writer`, `brainstorming` | 01_GOAL, 02_PRODUCT, 08_LIMITS |
-| `marketing-growth` | `competitive-ads-extractor`, `lead-research-assistant` | 03_NEXT_STEPS, 06_PRICE, 07_BUDGET |
-| `security-defensive` | `threat-hunting-with-sigma-rules`, `webapp-testing` | 08_LIMITS, 10_ERROR, 04_ELEMENTS |
-| `security-offensive` | `resemble-detect`, `computer-forensics`, `ffuf-web-fuzzing` | 10_ERROR, 08_LIMITS, 11_INTERPOLATION |
-| `testing-qa` | `test-driven-development`, `pypict-claude-skill` | 03_NEXT_STEPS, 05_COMPONENTS |
-| `data-analytics` | `csv-data-summarizer`, `d3js-visualization` | 04_ELEMENTS, 05_COMPONENTS, 10_ERROR |
-| `document-writing` | `doc`, `pdf`, `markdown-to-epub` | 03_NEXT_STEPS, 09_AGENTS |
-| `financial-spreadsheet` | `xlsx`, `invoice-organizer` | 07_BUDGET, 06_PRICE |
-| `presentation-slides` | `pptx` | 02_PRODUCT, 01_GOAL |
-| `data-visualization` | `chart`, `d3js-visualization` | 05_COMPONENTS, 08_LIMITS |
-| `ai-agents-mcp` | `mcp-builder`, `maestro-orchestrate`, `blueprint` | 05_COMPONENTS, 09_AGENTS |
-| `git-devops` | `git-pushing`, `finishing-a-development-branch` | 03_NEXT_STEPS, 09_AGENTS, 08_LIMITS |
-
----
-
-## VERSION HISTORY
-| Version | Date | Change |
-|---------|------|--------|
-| 1.0 | 2026-08-24 | Initial release — timeline, project rules, panel of agents |
-| 1.1 | 2026-08-24 | Added Phase 0.4 Skill Awareness — domain-to-tool map (external tools, SaaS links) |
-| 1.2 | 2026-08-24 | Replaced tool map with real LLM Skills (SKILL.md format) — 15 categories, skills from awesome-llm-skills + Perplexity built-ins, detection logic (active vs absent), injection targets per file, install instructions, GATE 5, Step 3.5, R-INDEX-4, non-redundancy rule |
+###
