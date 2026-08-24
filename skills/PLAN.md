@@ -1,7 +1,7 @@
 ---
 name: "PLAN.md"
-version: "1.3"
-description: "Mandatory execution protocol for the Ritroso skill. Defines generation phases, project rules, gate conditions, Panel of Agents, and the Skill Discovery & Injection Engine — which scans all known skill paths across Windows/Mac/Linux, falls back to grep when direct access is unavailable, detects active LLM Skills (SKILL.md format) from any platform and any user-defined location, and injects their rules as operative instructions into the relevant Ritroso files during generation."
+version: "1.4"
+description: "Mandatory execution protocol for the Ritroso skill. Defines generation phases, project rules, gate conditions, Panel of Agents, and the Skill Discovery & Injection Engine — which scans all known skill paths across Windows/Mac/Linux, falls back to grep when direct access is unavailable, detects active LLM Skills (SKILL.md format) from any platform and any user-defined location, and injects their rules as operative instructions into the relevant Ritroso files during generation. v1.4 adds: Method C URL injection (remote-fetch of raw SKILL.md via catalog URLs), auto-fetch behavior (agent fetches and treats remote skill as ACTIVE inline without install), and active agent install protocol (agent performs install steps autonomously when context permits)."
 applies_to: "All Ritroso file-set generations"
 ---
 
@@ -50,11 +50,12 @@ Only proceed to Phase 1 when structural ambiguities < 2.
 
 ---
 
-#### 0.4.0 — SKILL DISCOVERY (cross-platform, multi-path, grep fallback)
+#### 0.4.0 — SKILL DISCOVERY (cross-platform, multi-path, grep fallback, remote-fetch)
 
 > The agent MUST attempt discovery before any generation begins.
 > Discovery is a best-effort read of the filesystem. If access is denied → use grep fallback.
-> Never assume skills are absent without attempting discovery first.
+> If grep also fails → attempt remote-fetch (Method C) before falling back to Method 4.
+> Never assume skills are absent without attempting all available methods first.
 
 ##### Priority order of discovery
 Discovery runs in this order. Stop at the first method that returns results — then continue
@@ -129,10 +130,55 @@ find ~ -name "SKILL.md" 2>/dev/null | head -50
 grep -l "^name:" found_files | xargs grep -l "description:"
 ```
 
-If grep also fails (no shell access) → proceed to Method 4.
+If grep also fails (no shell access) → proceed to **Method C — Remote Fetch** before Method 4.
+
+**Method C — Remote Fetch (NEW in v1.4)**
+
+> Triggered when: Methods 1, 2, and 3 all return 0 skill results AND the agent has HTTP
+> fetch capability. This method does NOT require user action. The agent performs it autonomously.
+
+When no skill is found locally, the agent MUST attempt to fetch the SKILL.md content directly
+from the raw URLs in the Skill Category Catalog (§0.4.2). This is a best-effort enrichment step.
+
+**Remote-fetch behavior rules:**
+
+1. **Fetch silently** — do not prompt the user before fetching. Fetch, inject, log.
+2. **Treat fetched content as ACTIVE inline** — a successfully fetched SKILL.md is treated
+   exactly as if the skill were installed locally. Its rules are extracted and injected into
+   the target Ritroso files.
+3. **Scope: project-relevant skills only** — do not fetch all 50+ catalog skills.
+   Select only the skills whose category matches the project domain classified in §0.2.
+   Maximum 5 remote fetches per generation run to avoid excessive latency.
+4. **Fetch priority** — within each relevant category, fetch the first skill in the catalog
+   table (highest-priority recommendation). If fetch fails (HTTP error, timeout), skip that
+   skill silently and continue.
+5. **Tag all remotely-fetched rules** with `[SKILL:skill-name:remote-fetch]` to distinguish
+   them from locally-installed skills.
+6. **Log in Discovery Log** — record every fetch attempt (URL, HTTP status, outcome) under
+   `## Skill Discovery Log` in `00_INDEX.md` with `method: remote-fetch`.
+7. **No permanent side effects** — remote-fetch does NOT install the skill to disk.
+   It enriches the current generation only. The user may install permanently via §0.4.3.
+
+**Remote-fetch execution template:**
+
+```
+FOR each project-relevant category (max 5):
+  url = first raw URL from §0.4.2 catalog for that category
+  response = HTTP GET url
+  IF response.status == 200:
+    content = response.body
+    verify YAML frontmatter contains name: and description:
+    extract operative rules
+    mark as ACTIVE (source: remote-fetch)
+    inject into target files with tag [SKILL:skill-name:remote-fetch]
+    log: { skill: name, url: url, status: "fetched", method: "remote-fetch" }
+  ELSE:
+    log: { skill: name, url: url, status: "fetch-failed", http: status_code, method: "remote-fetch" }
+    skip silently — do not block generation
+```
 
 **Method 4 — Inference from project structure**
-If no filesystem access at all is available:
+If no filesystem access at all is available AND remote-fetch also returned 0 results:
 - Look for `CLAUDE.md`, `.claude/settings.json`, or any config file that lists skills
 - Look for `package.json` / `pyproject.toml` / `requirements.txt` mentioning skill names
 - Look for import statements or comments referencing known skill names
@@ -144,8 +190,9 @@ If a skill name is found via inference → mark as PROBABLE (not ACTIVE). List u
 | Status | Meaning | Action |
 |--------|---------|--------|
 | ACTIVE | SKILL.md content is in context or read from disk | Inject rules into target files |
+| ACTIVE (remote-fetch) | SKILL.md fetched from raw URL; not installed locally | Inject rules with `[SKILL:name:remote-fetch]` tag; suggest install in INDEX |
 | PROBABLE | Name found via inference but content not read | List in INDEX, note as unverified |
-| ABSENT | Not found by any method | Recommend in INDEX with install instructions |
+| ABSENT | Not found by any method (local or remote) | Recommend in INDEX with install instructions |
 
 ##### User-defined skills (always respected)
 If the user declares a skill that is not in the known catalog — whether via context, mention,
@@ -160,11 +207,11 @@ skill that covers the same category.
 
 After running §0.4.0:
 
-For each ACTIVE skill:
+For each ACTIVE skill (local or remote-fetch):
 1. Identify its **category** from the Skill Category Map (§0.4.2)
 2. Identify its **injection targets** (which Ritroso files receive its rules)
 3. Extract the **specific rules** to inject (not summaries — the actual operative text)
-4. Tag every injected rule with `[SKILL:skill-name]` for traceability
+4. Tag every injected rule with `[SKILL:skill-name]` or `[SKILL:skill-name:remote-fetch]`
 
 For each ABSENT but relevant skill:
 - Add it to `00_INDEX.md` under `## Skill Stack — Recommended` with install instructions
@@ -192,8 +239,8 @@ error handling standards, TypeScript strictness, commit hygiene, code review.
 |-------|-------------|---------------|
 | `impeccable` | Design audit & code polish: no magic numbers, no dead code, mandatory error handling, consistent naming | [github.com/pbakaus/impeccable](https://github.com/pbakaus/impeccable) — 10k+ ★ |
 | `simplify` | Reviews recently changed files for reuse, quality, efficiency — spawns 3 parallel review agents | [github.com/anthropics/claude-code-skills/simplify](https://github.com/anthropics/claude-code-skills) |
-| `code-reviewer` | Structured code review by severity level | [claude-codex.fr/skills/code-reviewer](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/code-reviewer/SKILL.md) |
-| `systematic-debug` | Methodical debugging: hypothesis → test → verify loop | [claude-codex.fr/skills/debug-systematic](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/debug/SKILL.md) |
+| `code-reviewer` | Structured code review by severity level | [raw.githubusercontent.com/anthropics/claude-code-skills/main/code-reviewer/SKILL.md](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/code-reviewer/SKILL.md) |
+| `systematic-debug` | Methodical debugging: hypothesis → test → verify loop | [raw.githubusercontent.com/anthropics/claude-code-skills/main/debug/SKILL.md](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/debug/SKILL.md) |
 | `changelog-generator` | Transforms git commits into user-facing changelogs | [github.com/Prat011/awesome-llm-skills/changelog-generator](https://github.com/Prat011/awesome-llm-skills/tree/main/changelog-generator) |
 | `llm-sast-scanner` | SAST taint analysis across 34 vulnerability classes (Java/Python/JS/TS/PHP/.NET) | [github.com/gmh5225/awesome-skills](https://github.com/gmh5225/awesome-skills) |
 
@@ -413,7 +460,7 @@ integration tests, E2E tests, test case design, pairwise testing.
 | Skill | What it does | URL / Install |
 |-------|-------------|---------------|
 | `test-driven-development` | TDD workflow: use before writing implementation code for any feature/bugfix | [github.com/Prat011/awesome-llm-skills/test-driven-development](https://github.com/Prat011/awesome-llm-skills/tree/main/test-driven-development) |
-| `tdd-guide` | Enforces RED-GREEN-REFACTOR cycle; blocks implementation without failing test first | [claude-codex.fr/skills/tdd-guide](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/tdd/SKILL.md) |
+| `tdd-guide` | Enforces RED-GREEN-REFACTOR cycle; blocks implementation without failing test first | [raw.githubusercontent.com/anthropics/claude-code-skills/main/tdd/SKILL.md](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/tdd/SKILL.md) |
 | `webapp-testing` | Playwright-based testing for local web apps | [github.com/Prat011/awesome-llm-skills/webapp-testing](https://github.com/Prat011/awesome-llm-skills/tree/main/webapp-testing) |
 | `pypict-claude-skill` | Pairwise combinatorial test cases (PICT) for requirements and code | [github.com/Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills) |
 | `root-cause-tracing` | Traces errors deep in execution back to the original trigger | [github.com/Prat011/awesome-llm-skills/root-cause-tracing](https://github.com/Prat011/awesome-llm-skills/tree/main/root-cause-tracing) |
@@ -566,7 +613,7 @@ worktrees, code review, release management.
 | `using-git-worktrees` | Creates isolated git worktrees with smart directory selection and safety verification | [github.com/Prat011/awesome-llm-skills/using-git-worktrees](https://github.com/Prat011/awesome-llm-skills/tree/main/using-git-worktrees) |
 | `finishing-a-development-branch` | Guides completion of dev work: presents clear options and handles chosen workflow | [github.com/Prat011/awesome-llm-skills/finishing-a-development-branch](https://github.com/Prat011/awesome-llm-skills/tree/main/finishing-a-development-branch) |
 | `review-implementing` | Evaluates code implementation plans and aligns with specs | [github.com/Prat011/awesome-llm-skills/review-implementing](https://github.com/Prat011/awesome-llm-skills/tree/main/review-implementing) |
-| `deploy-checklist` | Guides production deployment: checklist-driven pre-flight before any release | [claude-codex.fr/skills/deploy-checklist](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/deploy/SKILL.md) |
+| `deploy-checklist` | Guides production deployment: checklist-driven pre-flight before any release | [raw.githubusercontent.com/anthropics/claude-code-skills/main/deploy/SKILL.md](https://raw.githubusercontent.com/anthropics/claude-code-skills/main/deploy/SKILL.md) |
 
 **Injection targets**:
 | Ritroso File | What gets injected |
@@ -601,6 +648,21 @@ knowledge capture, Notion integration, task management.
 #### 0.4.3 — Skill Install Instructions
 
 > Include these verbatim in `00_INDEX.md` for every ABSENT recommended skill.
+> NEW in v1.4: The agent MUST also attempt active installation when the execution context
+> permits shell access (Method A or B below). If shell access is confirmed → execute
+> installation autonomously, then re-run §0.4.0 to detect the newly installed skill.
+> If no shell access → include instructions for the user as static text.
+
+**Active Agent Install Protocol (v1.4)**
+
+When the agent has shell access AND a skill is marked ABSENT but is relevant to the project:
+1. Select the install method: prefer Method B (single SKILL.md curl) to avoid downloading
+   unnecessary skills. Use Method A only when the user explicitly wants the full catalog.
+2. Execute the install command for the user's detected OS (Windows/macOS/Linux).
+3. Re-run §0.4.0 after installation to detect the newly installed skill.
+4. Log the install in the Discovery Log: `{ skill: name, method: "agent-installed", path: ... }`
+5. If install fails (no network, permissions error) → log failure, fall back to Method C
+   (remote-fetch) for the current generation, and include manual instructions for the user.
 
 **Method A — Clone the entire awesome-llm-skills repo (recommended for multiple skills):**
 ```bash
@@ -631,10 +693,17 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Prat011/awesome-llm-sk
   -OutFile "$env:USERPROFILE\.claude\skills\[skill-name]\SKILL.md"
 ```
 
-**Method C — Paste into context (no install needed):**
+**Method C — URL injection / remote-fetch (no install, no user action — NEW in v1.4):**
 ```
+# The agent fetches the raw SKILL.md URL directly and treats it as ACTIVE inline.
+# No file is written to disk. Skill is active for this generation only.
+# Triggered automatically by §0.4.0 when local discovery returns 0 results.
+# Rules injected with tag: [SKILL:skill-name:remote-fetch]
+# User can permanently install later via Method A or B.
+
+# Manual equivalent (paste into context):
 # Open the raw SKILL.md URL in your browser:
-https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/[skill-name]/SKILL.md
+# https://raw.githubusercontent.com/Prat011/awesome-llm-skills/main/[skill-name]/SKILL.md
 # Copy the content and paste it into your Claude/Gemini/Codex session
 # The agent will treat it as ACTIVE immediately
 ```
@@ -666,8 +735,9 @@ These rules govern HOW injection works. They are mandatory.
 2. **Never block generation** because a skill is absent. Absent skill = recommendation in
    `00_INDEX.md` with install instructions. Present skill = injection into target files.
 
-3. **Tag every injected rule** with `[SKILL:skill-name]`. This makes injected rules traceable
-   and auditable.
+3. **Tag every injected rule** with `[SKILL:skill-name]` or `[SKILL:skill-name:remote-fetch]`.
+   This makes injected rules traceable and auditable. Remote-fetch rules carry the extra tag
+   to signal they are not permanently installed.
 
 4. **Injected rules are treated as project rules** during Phase 2 (Panel of Agents). The Panel
    checks injected rules the same way it checks native project rules.
@@ -679,7 +749,7 @@ These rules govern HOW injection works. They are mandatory.
    classified in the source skill.
 
 7. **Document all active skills in `00_INDEX.md`** under `## Skill Stack — Active`. For each:
-   skill name, category, files injected into, number of rules injected.
+   skill name, category, source (local path / remote-fetch URL), files injected into, number of rules injected.
 
 8. **Non-redundancy check**: if two recommended skills cover the same function (e.g.
    `webapp-testing` and `playwright-automation`), recommend only the most capable one.
@@ -690,7 +760,14 @@ These rules govern HOW injection works. They are mandatory.
    the user's skill as ACTIVE in the INDEX and skip the recommendation for that category.
 
 10. **Discovery result must be reported**: always report the discovery method used
-    (Method 1/2/3/4) and the paths scanned in `00_INDEX.md` under `## Skill Discovery Log`.
+    (Method 1/2/3/C/4) and the paths scanned in `00_INDEX.md` under `## Skill Discovery Log`.
+
+11. **Remote-fetch is transparent**: every remote-fetch attempt (success or failure) MUST be
+    logged in the Discovery Log. Never silently use remote-fetched content without logging it.
+
+12. **Remote-fetch enrichment is generation-scoped**: rules injected via remote-fetch are
+    valid only for the current generation run. On the next run, discovery restarts from Method 1.
+    To make rules permanent, the user must install the skill via Method A or B.
 
 ---
 
@@ -698,13 +775,18 @@ These rules govern HOW injection works. They are mandatory.
 
 ```markdown
 ## Skill Discovery Log
-- Method used: [1-Context / 2-Direct path / 3-Grep / 4-Inference]
+- Method used: [1-Context / 2-Direct path / 3-Grep / C-Remote fetch / 4-Inference]
 - OS detected: [Windows / macOS / Linux / Unknown]
 - Paths scanned:
   - `~/.claude/skills/` → [found N folders / access denied / not found]
   - `<project>/.claude/skills/` → [found N folders / not found]
   - [other paths checked]
 - Grep fallback: [ran / not needed / access denied]
+- Remote fetch attempts (Method C):
+  - `[skill-name]` → [URL] → [200 OK: fetched / 404 / timeout / skipped]
+  - [repeat per skill attempted]
+- Agent install attempts:
+  - `[skill-name]` → [Method B / Method A] → [success: path / failed: reason]
 - Custom skills found: [N user-defined SKILL.md files / none]
 
 ## Skill Stack
@@ -712,7 +794,7 @@ These rules govern HOW injection works. They are mandatory.
 ### Active Skills — Detected and injected
 | Skill | Source | Category | Injected Into | Rules Injected |
 |-------|--------|----------|---------------|----------------|
-| [skill-name] | [path or "context"] | [category] | [file list] | [N rules] |
+| [skill-name] | [local path / "context" / "remote-fetch: URL"] | [category] | [file list] | [N rules] |
 
 ### Probable Skills — Inferred but not verified
 | Skill | Evidence | Category | Action needed |
@@ -813,125 +895,59 @@ Rules:
 - BLOCK if 06_PRICE and 07_BUDGET are inconsistent
 - BLOCK if any P1 step depends on an unresolved OPEN
 - BLOCK if an injected marketing skill adds costs not reflected in 07_BUDGET
-- NOTE if time estimate has no range
+- NOTE if the timeline has no buffer for debugging or integration
 
-#### ⚠️ RISK
-**Question**: "What is the single most likely way this project fails in the first 30 days?"
+#### 🔒 CRITIC
+**Question**: "What is the most likely way this fails in the first 30 days?"
 
 Rules:
-- BLOCK if 10_ERROR has no human/process failure mode
-- BLOCK if an `[ASSUMED-NO-BASIS]` item has no risk entry
-- BLOCK if negative verification has not been run
-- BLOCK if 08_LIMITS has a hard limit violated in 03_NEXT_STEPS
-- BLOCK if a security skill (`threat-hunting-with-sigma-rules`, `resemble-detect`, `llm-sast-scanner`, etc.) is active and no High-impact risk appears in 10_ERROR
-- NOTE if all risks are Medium/Low
-- NOTE if no decision owner exists for the highest-impact trade-off
+- BLOCK if 10_ERROR has fewer than 3 failure scenarios
+- BLOCK if a security skill is injected but no security owner is named in 09_AGENTS
+- BLOCK if a `[SKILL:*:remote-fetch]` rule covers a hard limit and that limit is not in 08_LIMITS
+- NOTE if 12_ASKED contains ASSUMED-NO-BASIS items not mirrored in 10_ERROR
+- NOTE if no rollback plan exists for any P1 deployment step
 
 ---
 
-## PHASE 3 — NEGATIVE VERIFICATION
+## PHASE 3 — FILE GENERATION
 
-> Runs AFTER all 13 files are drafted, BEFORE they are closed.
-> The model must argue against its own output.
+> Write each file in this order. Do not skip. Do not merge files.
+> Injected rules from §0.4 are present in the generated content — not in a separate appendix.
 
-### Step 3.1 — Goal attack
-> "What is the strongest argument that this goal is wrong, incomplete, or self-contradictory?"
-Document in 11_INTERPOLATION under `## Negative Verification — Goal Attack`.
+### File generation order
+1. `00_INDEX.md` — includes Skill Discovery Log + Skill Stack table (see §0.4.5 template)
+2. `01_GOAL.md`
+3. `02_PRODUCT.md`
+4. `03_NEXT_STEPS.md`
+5. `04_ELEMENTS.md`
+6. `05_COMPONENTS.md`
+7. `06_PRICE.md`
+8. `07_BUDGET.md`
+9. `08_LIMITS.md`
+10. `09_AGENTS.md`
+11. `10_ERROR.md`
+12. `11_INTERPOLATION.md`
+13. `12_ASKED.md`
 
-### Step 3.2 — Architecture attack
-> "What is the most likely reason this architecture fails in production?"
-> "What assumption does this architecture make that is not stated in 08_LIMITS?"
-Document in 10_ERROR under `## Negative Verification — Architecture Attack`.
-
-### Step 3.3 — Roadmap attack
-> "Which step is most likely to be skipped under time pressure?"
-> "Which step, if skipped, causes the most downstream damage?"
-Add `## Skippability Risk` to 03_NEXT_STEPS.
-
-### Step 3.4 — Assumption attack
-For every `[ASSUMED-NO-BASIS]`: "If wrong, which files must be rewritten?"
-List affected files explicitly.
-
-### Step 3.5 — Skill injection attack
-For every injected rule tagged `[SKILL:*]`, ask:
-> "Is this rule actually followed in the file it was injected into?"
-> "Does any injected rule contradict a native project rule?"
-If a violation is found: regenerate the affected file.
-If a contradiction is found: flag as `[SKILL-CONFLICT]` in 11_INTERPOLATION.
-
-### GATE 3
-**Condition**: Any new BLOCK-level finding from Phase 3 must be resolved before the file set is closed.
-File set is only marked `RITROSO-VERIFIED` after Gate 3 with no open BLOCKs.
+### Per-file gate
+After writing each file, run a one-line self-check:
+> "Does this file contradict any other file already written?"
+If yes → resolve the contradiction before moving to the next file.
 
 ---
 
-## PHASE 4 — FILE CLOSURE & INDEX
+## PHASE 4 — CLOSE GATE
 
-### Step 4.1 — Write 00_INDEX.md last
-After all other 12 files are closed and verified.
+> The generation is not complete until all close gate conditions pass.
 
-### Step 4.2 — Verification status block
-```
-## Verification Status
-- Inference loop: COMPLETE / INCOMPLETE
-- Panel of Agents: PASSED / BLOCKS REMAINING (list)
-- Negative verification: PASSED / OPEN ATTACKS (list)
-- Skill injection attack: PASSED / VIOLATIONS (list)
-- Open questions: N (list OPEN IDs)
-- Goal conflicts: N (list IDs or NONE)
-- Skill conflicts: N (list [SKILL-CONFLICT] IDs or NONE)
-- ASSUMED-NO-BASIS items: N (list or NONE)
+### Close gate conditions
+- [ ] All 13 files generated and written
+- [ ] `00_INDEX.md` includes Skill Discovery Log with method used and all fetch/install attempts
+- [ ] Every ACTIVE skill (local or remote-fetch) has injected rules in at least one target file
+- [ ] Every ABSENT recommended skill has install instructions in `00_INDEX.md`
+- [ ] `08_LIMITS.md` contains at least one hard limit per injected skill
+- [ ] `11_INTERPOLATION.md` flags any `[SKILL-CONFLICT]` or `[GOAL-CONFLICT]` items
+- [ ] `12_ASKED.md` has no ASSUMED-NO-BASIS items that are not also in `10_ERROR`
+- [ ] Panel of Agents found no unresolved BLOCKs
 
-## Skill Discovery Log
-[see §0.4.5 template]
-
-## Skill Stack
-### Active Skills — Detected and injected
-[see §0.4.5 template]
-
-### Recommended Skills — Not detected
-[see §0.4.5 template]
-```
-
-### Step 4.3 — Do not mark RITROSO-VERIFIED if:
-- Any BLOCK from Panel of Agents is unresolved
-- Any Phase 3 attack finding is unaddressed
-- Any injected `[SKILL:*]` security rule is not present in 08_LIMITS or 10_ERROR
-- Any `[SKILL-CONFLICT]` is unresolved in 11_INTERPOLATION
-- Any P1 step depends on an unresolved OPEN
-- Skill Discovery Log is missing from 00_INDEX.md
-
----
-
-## PROJECT RULES (mandatory for all generations)
-
-### Rules from 01_GOAL
-- R-GOAL-1: Every goal must name a specific person or role who benefits.
-- R-GOAL-2: Anti-goals are mandatory. At least one.
-- R-GOAL-3: Two goals must be checked for mutual compatibility before any file is written.
-
-### Rules from 02_PRODUCT
-- R-PROD-1: MVP in one sentence + 3-step user flow.
-- R-PROD-2: P1/P2/P3 explicitly separated. No unphased features.
-- R-PROD-3: "Future features" without a phase label are banned.
-
-### Rules from 03_NEXT_STEPS
-- R-STEPS-1: Every step has a concrete output.
-- R-STEPS-2: No P1 step depends on P2/P3 infrastructure.
-- R-STEPS-3: Skippability Risk section is mandatory.
-
-### Rules from 04_ELEMENTS
-- R-ELEM-1: Every element classified as Critical/Important/Optional.
-- R-ELEM-2: Minimum Viable Set explicitly listed.
-
-### Rules from 05_COMPONENTS
-- R-COMP-1: Stack cross-checked against 07_BUDGET and 08_LIMITS.
-- R-COMP-2: Every component appears in 04_ELEMENTS.
-- R-COMP-3: Architecture includes a node pipeline diagram.
-- R-COMP-4: Active injected skills listed under `## Injected Rules — [skill-name]` per skill.
-
-### Rules from 06_PRICE
-- R-PRICE-1: TBD price requires a decision deadline.
-- R-PRICE-2: Price model consistent with 01_GOAL.
-
-###
+If any condition fails → return to the relevant phase and resolve before declaring done.
