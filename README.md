@@ -1,18 +1,120 @@
 # Ritroso.md
 
-> Contextual reasoning skill for LLMs with multimodal generation of complete `.md` file sets and retroactive self-verification.
+> Contextual reasoning skill for LLMs — deterministic generation of complete `.md` file sets with multi-layer self-verification, cross-platform Skill Discovery, and autonomous remote-fetch injection.
 
 ## What It Is
 
 **Ritroso.md** is a skill framework for LLM models that forces the model to:
 
-1. Classify the project type and create a dedicated output folder
-2. Generate a **complete set of 13 `.md` files** as a structured project map
-3. Read every available resource in context in a **multimodal** way (text, code, images, PDF, GitHub repos)
-4. Run an **inference loop**: each file actively interrogates the others to maximize cross-file coherence before generation
-5. Submit to a **negative self-verification prompt** — the model attacks its own output and must defend it with cross-file consistency
+1. Classify the project domain and create a dedicated output folder
+2. Run a **Skill Discovery & Injection Engine** — finds installed skills, fetches missing ones via raw URL, injects their rules into the relevant files
+3. Generate a **complete set of 13 `.md` files** as a structured project map
+4. Execute an **Inference Loop** — each file interrogates the others before writing
+5. Submit every file to a **Panel of 4 Agents** (Architect, Designer, Pragmatist, Critic) — any BLOCK forces regeneration
+6. Run a **negative self-verification** — the model attacks its own output and must defend it with cross-file consistency
 
 The name "Ritroso" means the movement: **the model goes forward, then turns back to verify**.
+
+---
+
+## What's New in v1.4
+
+- **Method C — Remote Fetch**: if no local skill is found, the agent fetches skill rules directly from raw GitHub URLs — no install required, no user prompt needed
+- **Active Agent Install Protocol**: when shell access is available, the agent installs missing skills autonomously (Method B via curl), re-runs discovery, and falls back to remote-fetch if install fails
+- **CRITIC agent** now blocks if a remote-fetched skill covers a hard limit not present in `08_LIMITS`
+- **PHASE 3 and PHASE 4** explicitly documented in PLAN.md
+- **Discovery Log** updated with remote-fetch and agent-install sections
+
+---
+
+## Quick Flow (v1.4)
+
+```
+[USER PROMPT]
+      ↓
+[PHASE 0] Classify domain → count ambiguities → GATE 0
+      ↓
+[SKILL DISCOVERY ENGINE]
+  Method 1: Context scan (zero cost)
+  Method 2: Direct path scan (all OS + alternative agents)
+  Method 3: Grep fallback (find / Get-ChildItem)
+  Method C: Remote fetch from catalog raw URLs  ← NEW v1.4
+  Method 4: Inference from config files
+      ↓
+[INJECT] skill rules into target files with [SKILL:name] tags
+      ↓
+[PHASE 1] Inference Loop — 12 inter-file questions
+      ↓
+[PHASE 2] Panel of Agents — ARCHITECT · DESIGNER · PRAGMATIST · CRITIC
+      ↓
+[PHASE 3] Generate 13 .md files in fixed order
+      ↓
+[PHASE 4] Close Gate — 8 conditions must pass
+      ↓
+[00_INDEX.md] with Skill Discovery Log + [RITROSO-VERIFIED]
+```
+
+---
+
+## How to Install
+
+### Method A — Full install (recommended)
+
+Clona o scarica la repo intera e copia la cartella `skills/` nella posizione corretta per il tuo agente:
+
+```bash
+# macOS / Linux
+git clone https://github.com/Domenico0976/Ritroso.md.git
+cp -r Ritroso.md/skills/. ~/.claude/skills/
+```
+
+```powershell
+# Windows PowerShell
+git clone https://github.com/Domenico0976/Ritroso.md.git
+Copy-Item -Recurse Ritroso.md\skills\* "$env:APPDATA\Claude\skills\"
+```
+
+### Method B — Skill singola via curl
+
+Scarica solo il file `RITROSO.md` nella tua cartella skill:
+
+```bash
+# macOS / Linux
+curl -L https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/RITROSO.md \
+  -o ~/.claude/skills/ritroso/SKILL.md
+```
+
+```powershell
+# Windows PowerShell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/RITROSO.md" `
+  -OutFile "$env:APPDATA\Claude\skills\ritroso\SKILL.md"
+```
+
+### Method C — Inject via URL (no install)
+
+Non hai bisogno di installare nulla. L'agente — se supporta il fetch HTTP — caricherà le regole direttamente dal raw URL ad ogni generazione:
+
+```
+https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/RITROSO.md
+```
+
+Incolla questo URL nel context, nel system prompt, o dì all'agente:
+
+> "Carica le regole da: https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/RITROSO.md"
+
+Nota: le regole iniettate via URL sono valide **solo per la generazione corrente** e vengono taggate `[SKILL:ritroso:remote-fetch]` nell'output.
+
+---
+
+## How to Use
+
+1. Installa la skill con uno dei metodi sopra (o usa il raw URL)
+2. Fornisci un prompt di progetto al tuo agente
+3. Il sistema classifica automaticamente il dominio
+4. Il motore di Skill Discovery trova, fetcha o installa le skill rilevanti
+5. Se manca contesto critico, ti verrà posta **una domanda alla volta**
+6. Trovi i 13 file generati in `new-ideas/{domain}/{project}/`
+7. Il `00_INDEX.md` include il **Discovery Log** con tutti i metodi usati
 
 ---
 
@@ -21,59 +123,23 @@ The name "Ritroso" means the movement: **the model goes forward, then turns back
 ```
 Ritroso.md/
 ├── skills/
-│   ├── RITROSO.md              # Main skill — complete flow (markdown + YAML frontmatter)
+│   ├── RITROSO.md              # Main skill (PLAN.md v1.4)
+│   ├── PLAN.md                 # Protocol PLAN — Skill Discovery & full flow
 │   └── context-mapper.yaml     # Auxiliary skill — multimodal resource mapping
 ├── prompts/
-│   ├── negative-verification.md    # Negative self-verification prompt
-│   ├── project-template.md         # Shared standard header for the file set
-│   ├── context-gap-questions.md    # Protocol for empty/incomplete context
-│   ├── inference-loop.md           # Inter-file questioning loop protocol
-│   └── file-set-templates/         # Templates for each of the 13 set files
-│       ├── 00_INDEX.md
-│       ├── 01_GOAL.md
-│       ├── 02_PRODUCT.md
-│       ├── 03_NEXT_STEPS.md
-│       ├── 04_ELEMENTS.md
-│       ├── 05_COMPONENTS.md
-│       ├── 06_PRICE.md
-│       ├── 07_BUDGET.md
-│       ├── 08_LIMITS.md
-│       ├── 09_AGENTS.md
-│       ├── 10_ERROR.md
-│       ├── 11_INTERPOLATION.md
-│       └── 12_ASKED.md
+│   ├── negative-verification.md
+│   ├── project-template.md
+│   ├── context-gap-questions.md
+│   ├── inference-loop.md
+│   └── file-set-templates/     # Templates for all 13 output files
 ├── new-ideas/                  # Generated outputs — organized by domain/project
 │   └── {domain-slug}/
 │       └── {project-slug}/
 │           ├── 00_INDEX.md
 │           └── ... (13 files total)
 └── docs/
-    └── how-it-works.md         # Technical documentation of the v3 flow
-```
-
----
-
-## Quick Flow v3
-
-```
-[USER PROMPT]
-      ↓
-[SAVE FULL PROMPT] → .ritroso_prompt_cache.tmp
-      ↓
-[CLASSIFY DOMAIN] → domain_slug + project_name_slug
-      ↓
-[CONTEXT CHECK] ─── empty context? ──→ [CONTEXT GAP QUESTIONS — 1 per gap, sequential]
-      ↓
-[INFERENCE LOOP] → files interrogate each other before generation
-      ↓
-[CONTEXT MAPPER multimodal] → text · code · img · pdf · repo
-      ↓
-[GENERATE 13 .MD FILES] → 01_GOAL → 02_PRODUCT → ... → 12_ASKED
-      (each file runs inner monologue + asks next file a question)
-      ↓
-[NEGATIVE PROMPT] → "you got it wrong — verify cross-file"
-      ↓
-[00_INDEX.md] + [RITROSO-VERIFIED]
+    ├── how-it-works.md         # Technical documentation (deep dive)
+    └── RITROSO_DEEP_DIVE.md    # Full implementation reference (v1.4)
 ```
 
 ---
@@ -82,7 +148,7 @@ Ritroso.md/
 
 | # | File | Answers |
 |---|------|---------|
-| 00 | `INDEX` | Navigation map — generated last |
+| 00 | `INDEX` | Navigation map — includes Skill Discovery Log |
 | 01 | `GOAL` | Why the project exists |
 | 02 | `PRODUCT` | What it does in detail |
 | 03 | `NEXT_STEPS` | What to do now, ordered P1/P2/P3 |
@@ -90,66 +156,40 @@ Ritroso.md/
 | 05 | `COMPONENTS` | How it is built |
 | 06 | `PRICE` | How much it costs for the user |
 | 07 | `BUDGET` | How much it costs to produce |
-| 08 | `LIMITS` | What cannot/must not be done |
+| 08 | `LIMITS` | What cannot/must not be done — Hard Limits |
 | 09 | `AGENTS` | Who does what (AI + humans) |
-| 10 | `ERROR` | What can go wrong |
-| 11 | `INTERPOLATION` | How everything connects |
-| 12 | `ASKED` | What we don't know yet |
+| 10 | `ERROR` | What can go wrong — failure scenarios |
+| 11 | `INTERPOLATION` | How everything connects — conflicts flagged |
+| 12 | `ASKED` | What we don't know yet — assumptions tagged |
 
 ---
 
-## Inference Loop — Core Concept
+## Skill Discovery Engine — Summary
 
-Before generating each file, the model runs an **inter-file interrogation**:
+The engine runs in cascade across 5 methods:
 
-> Each file asks a question to the next file — and the next file must answer
-> before it is written. This creates a chain of inference that forces coherence
-> before the output exists.
+| Method | Trigger | Action |
+|--------|---------|--------|
+| 1 — Context | Always | Scans current session for loaded skills |
+| 2 — Path scan | If Method 1 = 0 results | Scans all known OS paths + alternative agents |
+| 3 — Grep | If Method 2 = 0 or access denied | `find` / `Get-ChildItem` from project root |
+| C — Remote fetch | If all local methods = 0 | HTTP GET catalog raw URLs, inject inline |
+| 4 — Inference | Last resort | Reads config files for skill name clues |
 
-Example chain:
-```
-01_GOAL asks → "Does the product actually solve this goal?"
-02_PRODUCT answers → then asks → "Are the components sufficient to build this?"
-05_COMPONENTS answers → then asks → "What breaks if this component fails?"
-10_ERROR answers → ...
-```
-
-The loop runs **before generation** and **after generation** (negative verification).
-This is the mechanism that prevents hallucinated consistency.
+Every injected rule is tagged: `[SKILL:name]` for local, `[SKILL:name:remote-fetch]` for remote.
 
 ---
 
-## Context Gap Protocol
+## Panel of Agents
 
-If the prompt is **empty or insufficient**, the model does NOT hallucinate.
-Instead, it triggers the **context gap question protocol**:
+Every generated file passes through 4 agents before it can be closed:
 
-1. Identify the most critical missing dimension (one at a time)
-2. Ask exactly **one question** — the most blocking one
-3. Wait for user answer → merge into context
-4. Re-evaluate: are there still gaps? → ask next question
-5. Once minimum viable context is reached → start inference loop
+- 🏛 **ARCHITECT** — architectural consistency and scalability
+- 🎨 **DESIGNER** — clarity, usability, user flow
+- ⚙️ **PRAGMATIST** — buildability within budget and team
+- 🔒 **CRITIC** — failure scenarios, security gaps, unresolved blocks
 
-The model never skips this. A hallucinated context is worse than an empty one.
-
----
-
-## How to Use
-
-1. Load the skill [`skills/RITROSO.md`](./skills/RITROSO.md) into your skill system
-   (e.g. GitHub Copilot, OpenDevin, Continue, or custom agent)
-2. Provide a project prompt
-3. The system automatically classifies the domain and creates the output folder
-4. If critical context is missing, you will be asked **one question at a time**
-5. You will find the 13 `.md` files generated in `new-ideas/{domain}/{project}/`
-6. The entire set is auto-verified with the negative prompt before delivery
-
----
-
-## Domain Types Supported
-
-`design-campaign` · `web-development` · `ai-agent` · `product-strategy`
-`content-marketing` · `infrastructure` · `business-plan` · `research` · `generic`
+A `BLOCK` from any agent forces file regeneration. Files with open BLOCKs cannot be closed.
 
 ---
 
@@ -157,10 +197,14 @@ The model never skips this. A hallucinated context is worse than an empty one.
 
 > *"The model must be wrong before it can be right."*
 
-The negative prompt is not destructive — it is the mechanism that transforms
-a mediocre output into a coherent one. The LLM is forced to compare its work
-with the original prompt from **hostile angles** (sales, time, resources, logic errors,
-cross-file contradictions).
+Negative verification is not destructive — it is the mechanism that transforms a mediocre output into a coherent one. The inference loop adds a second layer: **coherence is built before generation, not just verified after**.
 
-In v3, the inference loop adds a second layer: **coherence is built before generation,
-not just verified after**. Files interrogate each other. The model reasons with itself.
+In v1.4, the skill layer adds a third: **context enriches itself autonomously** — the agent finds the rules it needs without waiting for the user to install them.
+
+---
+
+## Documentation
+
+- [PLAN.md](./skills/PLAN.md) — Full protocol specification (v1.4)
+- [docs/RITROSO_DEEP_DIVE.md](./docs/RITROSO_DEEP_DIVE.md) — Deep-dive technical reference for every implemented component
+- [docs/how-it-works.md](./docs/how-it-works.md) — v3 flow overview
