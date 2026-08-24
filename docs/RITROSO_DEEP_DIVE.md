@@ -1,104 +1,104 @@
-# Ritroso.md — Documentazione Tecnica Approfondita
+# Ritroso.md — Deep-Dive Technical Reference
 
-Questo documento descrive in dettaglio ogni componente del protocollo Ritroso, dalla struttura del file-set al motore di Skill Discovery, dal Panel of Agents alle regole di injection. È la referenza completa per chi vuole capire come funziona ogni decisione implementativa.
+This document covers every component of the Ritroso protocol in detail: the file-set structure, the Skill Discovery Engine, the Panel of Agents, and the injection rules. It is the complete reference for understanding every implementation decision.
 
 ---
 
-## 1. Architettura del Protocollo
+## 1. Protocol Architecture
 
-Ritroso è un **protocollo di esecuzione deterministico** per agenti LLM. Non è una libreria, un tool, o un'API — è un insieme di istruzioni operative che l'agente segue in ordine fisso, senza possibilità di saltare fasi o modificare la sequenza.
+Ritroso is a **deterministic execution protocol** for LLM agents. It is not a library, a tool, or an API — it is a set of operative instructions the agent follows in a fixed order, with no ability to skip phases or modify the sequence.
 
-Il protocollo è articolato in 5 fasi:
+The protocol is structured in 5 phases:
 
 ```
-PHASE 0  → Intake, classificazione dominio, conteggio ambiguità, Skill Discovery
-PHASE 1  → Inference Loop: 13 domande inter-file prima di scrivere
-PHASE 2  → Panel of Agents: 4 agenti validano ogni file
-PHASE 3  → File Generation: 13 file in ordine fisso
-PHASE 4  → Close Gate: 8 condizioni di chiusura
+PHASE 0  → Intake, domain classification, ambiguity count, Skill Discovery
+PHASE 1  → Inference Loop: 13 inter-file questions before writing
+PHASE 2  → Panel of Agents: 4 agents validate every file
+PHASE 3  → File Generation: 13 files in fixed order
+PHASE 4  → Close Gate: 8 closing conditions
 ```
 
-### Principio di non-blocking
+### Non-blocking principle
 
-Nessun fallimento nella discovery delle skill blocca la generazione. Se tutte le skill sono assenti → si genera comunque, con raccomandazioni di install in `00_INDEX.md`. Questo garantisce che Ritroso produca sempre output, anche in ambienti con filesystem inaccessibile o senza connessione di rete.
+No failure in skill discovery blocks generation. If all skills are absent → generation proceeds anyway, with install recommendations in `00_INDEX.md`. This guarantees Ritroso always produces output, even in environments with no filesystem access or no network connection.
 
-### Principio di tracciabilità
+### Traceability principle
 
-Ogni regola iniettata da una skill esterna porta un tag esplicito (`[SKILL:nome]` o `[SKILL:nome:remote-fetch]`). Questo rende l'output **auditabile**: è sempre possibile sapere quale regola viene da quale fonte.
+Every rule injected from an external skill carries an explicit tag (`[SKILL:name]` or `[SKILL:name:remote-fetch]`). This makes the output **auditable**: it is always possible to know which rule came from which source.
 
 ---
 
 ## 2. PHASE 0 — Prompt Intake & Classification
 
-### §0.1 — Lettura letterale del prompt
+### §0.1 — Literal prompt reading
 
-Il prompt viene letto esattamente come fornito. L'agente **non migliora**, non parafrasa, non aggiunge termini tecnici. Il testo grezzo dell'utente è la ground truth assoluta.
+The prompt is read exactly as provided. The agent does **not improve**, paraphrase, or add technical terminology. The user's raw text is the absolute ground truth.
 
-Questa regola esiste per prevenire il fenomeno di "intent drift": gli LLM tendono ad assumere che l'utente intenda qualcosa di più sofisticato di ciò che ha scritto, portando a file-set che non corrispondono al progetto reale.
+This rule exists to prevent "intent drift": LLMs tend to assume the user means something more sophisticated than what they wrote, leading to file sets that do not match the actual project.
 
-### §0.2 — Classificazione dominio
+### §0.2 — Domain classification
 
-Il progetto viene assegnato a uno di sei domini:
+The project is assigned to one of six domains:
 
-| Dominio | Esempi |
-|---------|--------|
+| Domain | Examples |
+|--------|----------|
 | `software-product` | App, SaaS, tool, API |
-| `creative-technical` | Audiovisivo, generative art, installazione interattiva |
-| `content-operations` | Editoriale, CMS, workflow, publishing |
-| `open-source-framework` | Libreria, skill, framework di prompting, dev tool |
-| `service-or-agency` | Deliverable consulenza, progetto cliente |
-| `other` | Documentato esplicitamente |
+| `creative-technical` | Audiovisual, generative art, interactive installation |
+| `content-operations` | Editorial, CMS, workflow, publishing |
+| `open-source-framework` | Library, skill, prompting framework, dev tool |
+| `service-or-agency` | Consulting deliverable, client project |
+| `other` | Documented explicitly |
 
-La classificazione del dominio è input diretto per il **Method C (remote-fetch)**: determina quali categorie di skill vengono fetchate automaticamente in caso di discovery vuota.
+Domain classification is the direct input for **Method C (remote-fetch)**: it determines which skill categories are fetched automatically when local discovery returns empty.
 
-### §0.3 — Conteggio ambiguità e GATE 0
+### §0.3 — Ambiguity count and GATE 0
 
-Un'**ambiguità strutturale** è qualsiasi gap che cambia architettura, pricing, scope, o distribuzione del progetto. Se il conteggio raggiunge 2 o più, GATE 0 blocca la generazione.
+A **structural ambiguity** is any gap that changes the architecture, pricing, scope, or distribution of the project. If the count reaches 2 or more, GATE 0 blocks generation.
 
-La regola critica: l'agente pone **una sola domanda**, quella che sblocca il maggior numero di altre risposte. Non un elenco di domande. Questo principio — chiamato "domanda di massima leva" — riduce la frizione con l'utente e mantiene il dialogo scorrevole.
+The critical rule: the agent asks **one question only** — the one that unblocks the greatest number of other answers. Not a list. This principle — called the "maximum-leverage question" — reduces friction with the user and keeps the dialogue fluid.
 
 ---
 
 ## 3. PHASE 0.4 — Skill Discovery & Injection Engine
 
-### Architettura del motore
+### Engine architecture
 
-Il motore di discovery è il componente più sofisticato del protocollo. Opera in cascata su 5 metodi, ognuno attivato solo se il precedente non ha prodotto risultati sufficienti.
+The discovery engine is the most sophisticated component of the protocol. It operates in cascade across 5 methods, each activated only if the previous one produced insufficient results.
 
 ```
 Method 1 (Context)
-    ↓ [0 risultati]
+    ↓ [0 results]
 Method 2 (Direct path scan)
-    ↓ [0 risultati o access denied]
+    ↓ [0 results or access denied]
 Method 3 (Grep fallback)
-    ↓ [0 risultati o no shell access]
-Method C (Remote fetch)        ← NUOVO in v1.4
-    ↓ [0 risultati o no HTTP]
+    ↓ [0 results or no shell access]
+Method C (Remote fetch)        ← NEW in v1.4
+    ↓ [0 results or no HTTP]
 Method 4 (Inference)
 ```
 
 ### Method 1 — Context Scan
 
-Questo è il metodo a costo zero: nessun accesso al filesystem, nessuna chiamata HTTP. L'agente scansiona il contesto della conversazione corrente cercando:
+This is the zero-cost method: no filesystem access, no HTTP calls. The agent scans the current conversation context looking for:
 
-- File `SKILL.md` già caricati dall'utente
-- Nomi di skill menzionati esplicitamente ("usa impeccable", "ponytail è attivo")
-- Chiamate `load_skill()` già eseguite nella sessione
-- Blocchi YAML frontmatter con campo `name:` che sembrano dichiarazioni di skill
+- `SKILL.md` files already loaded by the user
+- Skill names mentioned explicitly ("use impeccable", "ponytail is active")
+- `load_skill()` calls already executed in the session
+- YAML frontmatter blocks with a `name:` field that look like skill declarations
 
-Qualsiasi skill trovata via Method 1 è immediatamente `ACTIVE` — le sue regole vengono iniettate senza ulteriori verifiche.
+Any skill found via Method 1 is immediately `ACTIVE` — its rules are injected without further verification.
 
 ### Method 2 — Direct Path Scan
 
-Scansione di **tutti i path noti** per ogni sistema operativo, compresi i path di agenti alternativi (Codex CLI, Gemini CLI, OpenCode, Qwen Code). Il motore **non si ferma al primo path trovato**: continua a controllare tutti i path anche dopo aver trovato skill, per rilevare skill in posizioni multiple.
+Scans **all known paths** for every operating system, including paths for alternative agents (Codex CLI, Gemini CLI, OpenCode, Qwen Code). The engine **does not stop at the first path found**: it continues checking all paths even after finding skills, to detect skills in multiple locations.
 
-Per ogni directory trovata:
-1. Lista tutte le sottodirectory
-2. Cerca `SKILL.md` (case-insensitive) dentro ognuna
-3. Se trovato → legge il file, estrae `name`, `description`, `version` dal YAML frontmatter
-4. Marca come `ACTIVE`
+For each directory found:
+1. List all subdirectories
+2. Search for `SKILL.md` (case-insensitive) inside each one
+3. If found → read the file, extract `name`, `description`, `version` from the YAML frontmatter
+4. Mark as `ACTIVE`
 
-**Path Windows scansionati:**
+**Windows paths scanned:**
 ```
 %USERPROFILE%\.claude\skills\    %APPDATA%\Claude\skills\
 %LOCALAPPDATA%\Claude\skills\   %USERPROFILE%\skills\
@@ -106,7 +106,7 @@ Per ogni directory trovata:
 %USERPROFILE%\agent-skills\     %USERPROFILE%\llm-skills\
 ```
 
-**Path macOS scansionati:**
+**macOS paths scanned:**
 ```
 ~/.claude/skills/
 ~/Library/Application Support/Claude/skills/
@@ -114,7 +114,7 @@ Per ogni directory trovata:
 ~/agent-skills/    ~/llm-skills/
 ```
 
-**Path Linux scansionati (XDG standard):**
+**Linux paths scanned (XDG standard):**
 ```
 ~/.config/claude/skills/   ~/.local/share/claude/skills/
 ~/.claude/skills/          ~/skills/   ~/claude/skills/
@@ -123,7 +123,7 @@ Per ogni directory trovata:
 
 ### Method 3 — Grep Fallback
 
-Attivato quando il path scan fallisce (access denied o path inesistenti). L'agente esegue comandi `find` (macOS/Linux) o `Get-ChildItem` (Windows PowerShell) dal project root e dalla home directory. Dopo aver trovato i file, li filtra con grep per verificare che contengano `name:` e `description:` nel frontmatter — evitando di trattare come skill qualsiasi file chiamato `SKILL.md` per coincidenza.
+Activated when path scan fails (access denied or nonexistent paths). The agent runs `find` (macOS/Linux) or `Get-ChildItem` (Windows PowerShell) from the project root and the home directory. After finding files, it filters them with grep to verify they contain `name:` and `description:` in the frontmatter — avoiding treating any file named `SKILL.md` by coincidence as a skill.
 
 ```bash
 # macOS / Linux
@@ -138,58 +138,58 @@ Get-ChildItem -Path $HOME -Recurse -Filter "SKILL.md" -ErrorAction SilentlyConti
 
 ### Method C — Remote Fetch (v1.4)
 
-Questo è il metodo più innovativo della v1.4. Quando tutti i metodi locali falliscono, l'agente **non aspetta che l'utente installi le skill** — le fetcha autonomamente.
+This is the most innovative method in v1.4. When all local methods fail, the agent **does not wait for the user to install skills** — it fetches them autonomously.
 
-**Comportamento dettagliato:**
+**Detailed behavior:**
 
-1. **Silenzioso**: nessun prompt all'utente prima del fetch
-2. **Scoped**: fetch solo delle categorie rilevanti per il dominio classificato in §0.2 (max 5 fetch per run)
-3. **Prioritizzato**: per ogni categoria, viene fetchata la prima skill nella tabella del catalogo §0.4.2
-4. **Non permanente**: nessun file viene scritto su disco. Le regole sono iniettate solo per la generazione corrente
-5. **Loggato**: ogni tentativo (successo o fallimento) viene registrato nel Discovery Log di `00_INDEX.md`
-6. **Resiliente**: se un fetch fallisce (HTTP error, timeout) → skip silenzioso, la generazione non si blocca
+1. **Silent**: no prompt to the user before the fetch
+2. **Scoped**: fetches only categories relevant to the domain classified in §0.2 (max 5 fetches per run)
+3. **Prioritized**: for each category, the first skill in the §0.4.2 catalog table is fetched
+4. **Non-permanent**: no file is written to disk. Rules are injected only for the current generation
+5. **Logged**: every attempt (success or failure) is recorded in the Discovery Log in `00_INDEX.md`
+6. **Resilient**: if a fetch fails (HTTP error, timeout) → silent skip, generation does not block
 
-**Template di esecuzione:**
+**Execution template:**
 
 ```
 FOR each project-relevant category (max 5):
-  url = primo raw URL dal catalogo §0.4.2 per quella categoria
+  url = first raw URL from catalog §0.4.2 for that category
   response = HTTP GET url
   IF response.status == 200:
     content = response.body
-    verifica frontmatter YAML (name: + description:)
-    estrai regole operative
+    verify YAML frontmatter (name: + description:)
+    extract operative rules
     mark as ACTIVE (source: remote-fetch)
-    inietta con tag [SKILL:nome:remote-fetch]
+    inject with tag [SKILL:name:remote-fetch]
     log: { skill, url, status: "fetched", method: "remote-fetch" }
   ELSE:
     log: { skill, url, status: "fetch-failed", http: status_code }
-    skip silenzioso
+    silent skip
 ```
 
-**Differenza chiave rispetto a v1.3**: in v1.3 una skill ABSENT produceva solo raccomandazioni nell'INDEX. In v1.4, se il raw URL è noto nel catalogo, l'agente può **bypassare completamente l'install** e arricchire la generazione comunque.
+**Key difference from v1.3**: in v1.3 an ABSENT skill only produced recommendations in the INDEX. In v1.4, if the raw URL is known in the catalog, the agent can **bypass installation entirely** and enrich the generation anyway.
 
 ### Method 4 — Inference
 
-Ultimo fallback assoluto. L'agente cerca tracce di skill in file di configurazione (`CLAUDE.md`, `package.json`, `pyproject.toml`) o commenti nel codice. Le skill trovate così vengono classificate come `PROBABLE` — non `ACTIVE` — perché il contenuto non è stato letto, solo il nome è stato inferito.
+Absolute last resort. The agent looks for skill traces in config files (`CLAUDE.md`, `package.json`, `pyproject.toml`) or code comments. Skills found this way are classified as `PROBABLE` — not `ACTIVE` — because the content was not read, only the name was inferred.
 
-### Classificazione dei risultati
+### Result classification
 
-| Status | Significato | Azione |
-|--------|-------------|--------|
-| `ACTIVE` | SKILL.md letto da disco o da contesto | Inietta regole nei file target |
-| `ACTIVE (remote-fetch)` | SKILL.md fetchato da raw URL, non installato | Inietta con tag `:remote-fetch`; suggerisci install nell'INDEX |
-| `PROBABLE` | Nome trovato per inferenza, contenuto non letto | Lista nell'INDEX, segnala come non verificato |
-| `ABSENT` | Non trovato da nessun metodo (locale o remoto) | Raccomanda nell'INDEX con istruzioni di install |
+| Status | Meaning | Action |
+|--------|---------|--------|
+| `ACTIVE` | SKILL.md read from disk or context | Inject rules into target files |
+| `ACTIVE (remote-fetch)` | SKILL.md fetched from raw URL, not installed | Inject with `:remote-fetch` tag; suggest install in INDEX |
+| `PROBABLE` | Name found by inference, content not read | List in INDEX, flag as unverified |
+| `ABSENT` | Not found by any method (local or remote) | Recommend in INDEX with install instructions |
 
 ---
 
-## 4. Catalogo Skill — 13 Categorie
+## 4. Skill Catalog — 13 Categories
 
-Il catalogo §0.4.2 copre lo spettro completo dallo sviluppo alla sicurezza al marketing. Ogni categoria specifica: quali skill la coprono, quali file Ritroso ricevono injection, e cosa viene iniettato.
+The §0.4.2 catalog covers the full spectrum from development to security to marketing. Each category specifies: which skills cover it, which Ritroso files receive injection, and what gets injected.
 
-| Categoria | Injection Target principali |
-|-----------|--------------------------|
+| Category | Main injection targets |
+|----------|----------------------|
 | `code-quality` | `05_COMPONENTS`, `08_LIMITS`, `10_ERROR` |
 | `ui-ux-design` | `02_PRODUCT`, `04_ELEMENTS`, `05_COMPONENTS`, `08_LIMITS` |
 | `frontend-framework` | `05_COMPONENTS`, `08_LIMITS`, `03_NEXT_STEPS` |
@@ -209,152 +209,152 @@ Il catalogo §0.4.2 copre lo spettro completo dallo sviluppo alla sicurezza al m
 | `git-devops` | `03_NEXT_STEPS`, `09_AGENTS`, `08_LIMITS` |
 | `productivity-automation` | `09_AGENTS`, `03_NEXT_STEPS` |
 
-**Fonti del catalogo:**
+**Catalog sources:**
 - Perplexity built-in: `chart`, `website-building`
 - Anthropic built-in: `doc`, `pdf`, `pptx`, `xlsx`
-- Esterne: [Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills), [mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills), [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills), [gmh5225/awesome-skills](https://github.com/gmh5225/awesome-skills)
+- External: [Prat011/awesome-llm-skills](https://github.com/Prat011/awesome-llm-skills), [mingrath/awesome-claude-skills](https://github.com/mingrath/awesome-claude-skills), [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills), [gmh5225/awesome-skills](https://github.com/gmh5225/awesome-skills)
 
-### Priorità utente vs catalogo
+### User skill priority vs catalog
 
-Se l'utente ha una skill custom che copre la stessa categoria di una skill del catalogo → la skill dell'utente ha **precedenza assoluta**. La skill del catalogo non viene nemmeno raccomandata per quella categoria. Le skill custom vengono taggate `[SKILL:custom/nome-skill]`.
+If the user has a custom skill covering the same category as a catalog skill → the user's skill takes **absolute priority**. The catalog skill is not even recommended for that category. Custom skills are tagged `[SKILL:custom/skill-name]`.
 
 ---
 
-## 5. Injection Rules — Come funziona l'injection
+## 5. Injection Rules
 
-### Regola 1 — Inject rules, not pointers
-Mai scrivere "vedi skill X per le regole di design". Le regole operative vengono estratte e scritte **inline** nel file target sotto `## Injected Rules — [nome-skill]`. Il file deve essere autocontenuto.
+### Rule 1 — Inject rules, not pointers
+Never write "see skill X for design rules". Operative rules are extracted and written **inline** in the target file under `## Injected Rules — [skill-name]`. The file must be self-contained.
 
-### Regola 2 — Never block on absent skill
-Una skill assente non blocca mai la generazione. Produce solo una voce nel `00_INDEX.md` sotto `## Skill Stack — Recommended` con le istruzioni di install.
+### Rule 2 — Never block on absent skill
+An absent skill never blocks generation. It only produces an entry in `00_INDEX.md` under `## Skill Stack — Recommended` with install instructions.
 
-### Regola 3 — Tagging obbligatorio
-Ogni regola iniettata porta il tag `[SKILL:nome]` per le skill locali, `[SKILL:nome:remote-fetch]` per quelle fetchate da URL. Questo garantisce tracciabilità completa nell'output.
+### Rule 3 — Mandatory tagging
+Every injected rule carries the tag `[SKILL:name]` for local skills, `[SKILL:name:remote-fetch]` for URL-fetched skills. This guarantees full traceability in the output.
 
-### Regola 4 — Hard Limits automatici
-Qualsiasi regola iniettata in `08_LIMITS.md` diventa automaticamente un **Hard Limit** — indipendentemente dalla classificazione che aveva nella skill sorgente. Non ci sono eccezioni.
+### Rule 4 — Automatic Hard Limits
+Any rule injected into `08_LIMITS.md` automatically becomes a **Hard Limit** — regardless of how it was classified in the source skill. No exceptions.
 
-### Regola 5 — Conflitti espliciti
-Se due skill iniettate hanno regole in conflitto tra loro → il conflitto viene flaggato come `[SKILL-CONFLICT: skill-a vs skill-b]` in `11_INTERPOLATION.md` e surfacato all'utente in `12_ASKED.md`. Mai risolto silenziosamente.
+### Rule 5 — Explicit conflicts
+If two injected skills have conflicting rules → the conflict is flagged as `[SKILL-CONFLICT: skill-a vs skill-b]` in `11_INTERPOLATION.md` and surfaced to the user in `12_ASKED.md`. Never resolved silently.
 
-### Regole 11 e 12 — Trasparenza e scoping del remote-fetch (v1.4)
-- **Regola 11**: Ogni tentativo di remote-fetch (successo o fallimento) deve essere loggato nel Discovery Log. Mai usare contenuto remote-fetched senza registrarlo.
-- **Regola 12**: Le regole iniettate via remote-fetch sono valide **solo per la generazione corrente**. Per renderle permanenti, l'utente deve installare la skill via Method A o B.
+### Rules 11 and 12 — Remote-fetch transparency and scoping (v1.4)
+- **Rule 11**: Every remote-fetch attempt (success or failure) must be logged in the Discovery Log. Content fetched remotely must never be used without logging it.
+- **Rule 12**: Rules injected via remote-fetch are valid **for the current generation only**. To make them permanent, the user must install the skill via Method A or B.
 
 ### Active Agent Install Protocol (v1.4)
 
-Quando l'agente ha accesso shell E una skill è ABSENT ma rilevante per il progetto:
+When the agent has shell access AND a skill is ABSENT but relevant to the project:
 
-1. Sceglie Method B (curl singolo SKILL.md) come default
-2. Esegue il comando di install per l'OS rilevato
-3. **Ri-esegue §0.4.0** dopo l'install per rilevare la skill appena installata
-4. Logga: `{ skill, method: "agent-installed", path }`
-5. Se l'install fallisce → fallback su Method C per la generazione corrente + istruzioni manuali nell'INDEX
+1. Selects Method B (single SKILL.md curl) as default
+2. Executes the install command for the detected OS
+3. **Re-runs §0.4.0** after install to detect the newly installed skill
+4. Logs: `{ skill, method: "agent-installed", path }`
+5. If install fails → fallback to Method C for the current generation + manual instructions in the INDEX
 
 ---
 
 ## 6. PHASE 1 — Inference Loop
 
-Prima di scrivere qualsiasi file, l'agente esegue internamente 12 domande di inferenza — una per ogni file del set (escluso `00_INDEX.md`). Queste domande rilevano contraddizioni, assunzioni non documentate, e conflitti tra obiettivi prima che diventino problemi nell'output.
+Before writing any file, the agent internally runs 12 inference questions — one per file in the set (excluding `00_INDEX.md`). These questions detect contradictions, undocumented assumptions, and goal conflicts before they become problems in the output.
 
-### Classificazione delle assunzioni
+### Assumption classification
 
-Ogni assunzione in `12_ASKED.md` deve portare uno di due tag:
+Every assumption in `12_ASKED.md` must carry one of two tags:
 
-- `[INFERRED-FROM-TEXT]` — supportata da qualcosa nel prompt originale
-- `[ASSUMED-NO-BASIS]` — riempie un gap senza supporto testuale
+- `[INFERRED-FROM-TEXT]` — supported by something in the original prompt
+- `[ASSUMED-NO-BASIS]` — fills a gap with no textual support
 
-Le assunzioni `ASSUMED-NO-BASIS` sono automaticamente segnalate anche in `10_ERROR.md` come rischi ad alta incertezza.
+`ASSUMED-NO-BASIS` assumptions are automatically flagged in `10_ERROR.md` as high-uncertainty risks.
 
-### Verifica di compatibilità degli obiettivi
+### Goal compatibility check
 
-Passo esplicito: *"Gli obiettivi in `01_GOAL` sono mutuamente compatibili?"* — se viene trovato un conflitto → flaggato in `11_INTERPOLATION.md` come `[GOAL-CONFLICT]` con descrizione esplicita.
+Explicit step: *"Are the goals in `01_GOAL` mutually compatible?"* — if a conflict is found → flagged in `11_INTERPOLATION.md` as `[GOAL-CONFLICT]` with an explicit description.
 
 ---
 
 ## 7. PHASE 2 — Panel of Agents
 
-Ogni file generato passa attraverso 4 agenti prima di essere chiuso. Se un agente solleva un `BLOCK`, il file viene **rigenerato** — non annotato. Un file con BLOCK aperto non può essere chiuso.
+Every generated file passes through 4 agents before it can be closed. If an agent raises a `BLOCK`, the file is **regenerated** — not annotated. A file with an open BLOCK cannot be closed.
 
 ### 🏛 ARCHITECT
 
-**Domanda guida**: *"Questa decisione regge se il progetto raddoppia di scope, cambia piattaforma, o cambia utente target?"*
+**Guiding question**: *"Does this decision hold if the project doubles in scope, changes platform, or changes target user?"*
 
-Blocca se:
-- Un componente contraddice `08_LIMITS` (incluse le regole `[SKILL:*]` iniettate)
-- I next steps P1 includono infrastruttura che richiede P2
-- Una skill di sicurezza iniettata richiede un componente P1 assente da `04_ELEMENTS`
+Blocks if:
+- A component contradicts `08_LIMITS` (including injected `[SKILL:*]` rules)
+- P1 next steps include infrastructure that requires P2
+- An injected security skill requires a P1 component absent from `04_ELEMENTS`
 
 ### 🎨 DESIGNER
 
-**Domanda guida**: *"Una persona che non ha scritto questo prompt può leggere questo file e sapere esattamente cosa fare dopo?"*
+**Guiding question**: *"Can someone who did not write this prompt read this file and know exactly what to do next?"*
 
-Blocca se:
-- `03_NEXT_STEPS` contiene un passo senza output concreto
-- `02_PRODUCT` non ha un user flow (minimo 3 passi)
-- `09_AGENTS` lista un ruolo senza responsabilità concreta
+Blocks if:
+- `03_NEXT_STEPS` contains a step with no concrete output
+- `02_PRODUCT` has no user flow (minimum 3 steps)
+- `09_AGENTS` lists a role with no concrete responsibility
 
 ### ⚙️ PRAGMATIST
 
-**Domanda guida**: *"È effettivamente buildabile con il tempo, il budget e le persone dichiarate?"*
+**Guiding question**: *"Is it actually buildable with the time, budget, and people declared in `07_BUDGET` and `09_AGENTS`?"*
 
-Blocca se:
-- Lo scope P1 supera il budget di >50%
-- Un componente richiede expertise non presente in `09_AGENTS`
-- `06_PRICE` e `07_BUDGET` sono incoerenti
-- Un qualsiasi step P1 dipende da un OPEN non risolto
+Blocks if:
+- P1 scope exceeds budget by >50%
+- A component requires expertise not present in `09_AGENTS`
+- `06_PRICE` and `07_BUDGET` are inconsistent
+- Any P1 step depends on an unresolved OPEN
 
-### 🔒 CRITIC (potenziato in v1.4)
+### 🔒 CRITIC (enhanced in v1.4)
 
-**Domanda guida**: *"Qual è il modo più probabile in cui questo fallisce nei primi 30 giorni?"*
+**Guiding question**: *"What is the most likely way this fails in the first 30 days?"*
 
-Blocca se:
-- `10_ERROR` ha meno di 3 scenari di fallimento
-- Una skill di sicurezza è iniettata ma nessun security owner è nominato in `09_AGENTS`
-- **[NUOVO v1.4]** Una regola `[SKILL:*:remote-fetch]` copre un hard limit non presente in `08_LIMITS`
+Blocks if:
+- `10_ERROR` has fewer than 3 failure scenarios
+- A security skill is injected but no security owner is named in `09_AGENTS`
+- **[NEW v1.4]** A `[SKILL:*:remote-fetch]` rule covers a hard limit not present in `08_LIMITS`
 
 ---
 
 ## 8. PHASE 3 — File Generation
 
-I file vengono generati sempre in ordine fisso:
+Files are always generated in this fixed order:
 
 ```
-1.  00_INDEX.md      ← Include Skill Discovery Log
+1.  00_INDEX.md          ← Includes Skill Discovery Log
 2.  01_GOAL.md
 3.  02_PRODUCT.md
 4.  03_NEXT_STEPS.md
 5.  04_ELEMENTS.md
-6.  05_COMPONENTS.md ← Include regole iniettate dalle skill
+6.  05_COMPONENTS.md     ← Includes injected skill rules
 7.  06_PRICE.md
 8.  07_BUDGET.md
-9.  08_LIMITS.md     ← Ogni regola iniettata diventa Hard Limit
+9.  08_LIMITS.md         ← Every injected rule becomes a Hard Limit
 10. 09_AGENTS.md
 11. 10_ERROR.md
-12. 11_INTERPOLATION.md ← Flagga SKILL-CONFLICT e GOAL-CONFLICT
-13. 12_ASKED.md     ← Tutte le assunzioni taggate
+12. 11_INTERPOLATION.md  ← Flags SKILL-CONFLICT and GOAL-CONFLICT
+13. 12_ASKED.md          ← All assumptions tagged
 ```
 
-L'ordine non è arbitrario: ogni file costruisce su quelli precedenti. Dopo ogni file, l'agente esegue un self-check: *"Questo file contraddice qualsiasi file già scritto?"*. Se sì → risolve prima di procedere.
+The order is not arbitrary: each file builds on the previous ones. After each file, the agent runs a self-check: *"Does this file contradict any file already written?"*. If yes → resolve before proceeding.
 
 ---
 
 ## 9. PHASE 4 — Close Gate
 
-La generazione non è completa finché tutte le condizioni non passano:
+Generation is not complete until all conditions pass:
 
-- [ ] Tutti i 13 file generati
-- [ ] `00_INDEX.md` include il Discovery Log con metodo usato e tutti i tentativi di fetch/install
-- [ ] Ogni skill ACTIVE (locale o remote-fetch) ha regole iniettate in almeno un file target
-- [ ] Ogni skill ABSENT raccomandata ha istruzioni di install in `00_INDEX.md`
-- [ ] `08_LIMITS.md` contiene almeno un hard limit per ogni skill iniettata
-- [ ] `11_INTERPOLATION.md` flagga eventuali `[SKILL-CONFLICT]` o `[GOAL-CONFLICT]`
-- [ ] `12_ASKED.md` non ha item `ASSUMED-NO-BASIS` non presenti anche in `10_ERROR`
-- [ ] Il Panel of Agents non ha BLOCK aperti
+- [ ] All 13 files generated
+- [ ] `00_INDEX.md` includes the Discovery Log with method used and all fetch/install attempts
+- [ ] Every ACTIVE skill (local or remote-fetch) has rules injected into at least one target file
+- [ ] Every ABSENT recommended skill has install instructions in `00_INDEX.md`
+- [ ] `08_LIMITS.md` contains at least one hard limit per injected skill
+- [ ] `11_INTERPOLATION.md` flags any `[SKILL-CONFLICT]` or `[GOAL-CONFLICT]`
+- [ ] `12_ASKED.md` has no `ASSUMED-NO-BASIS` items not also present in `10_ERROR`
+- [ ] The Panel of Agents has no open BLOCKs
 
 ---
 
-## 10. Il Discovery Log in 00_INDEX.md
+## 10. The Discovery Log in 00_INDEX.md
 
 ```markdown
 ## Skill Discovery Log
@@ -375,21 +375,21 @@ La generazione non è completa finché tutte le condizioni non passano:
 
 ## 11. Changelog
 
-### v1.4 (agosto 2026)
+### v1.4 (August 2026)
 
-1. **Method C — Remote Fetch** in §0.4.0: discovery autonoma via HTTP fetch dei raw URL del catalogo. Tag `[SKILL:nome:remote-fetch]` per tracciabilità.
-2. **Active Agent Install Protocol** in §0.4.3: install autonoma via curl, re-run discovery, fallback su Method C.
-3. **§0.4.4 regole 11 e 12**: ogni fetch loggato; remote-fetch è generation-scoped.
-4. **CRITIC agent**: nuovo BLOCK per `[SKILL:*:remote-fetch]` su hard limit non in `08_LIMITS`.
-5. **PHASE 3 e PHASE 4** documentate esplicitamente nel PLAN.md.
-6. **Discovery Log template** aggiornato con sezioni remote-fetch e agent-install.
-7. **Status `ACTIVE (remote-fetch)`** aggiunto alla tabella di classificazione.
+1. **Method C — Remote Fetch** in §0.4.0: autonomous discovery via HTTP fetch of catalog raw URLs. Tag `[SKILL:name:remote-fetch]` for traceability.
+2. **Active Agent Install Protocol** in §0.4.3: autonomous install via curl, re-run discovery, fallback to Method C.
+3. **§0.4.4 rules 11 and 12**: every fetch logged; remote-fetch is generation-scoped.
+4. **CRITIC agent**: new BLOCK for `[SKILL:*:remote-fetch]` covering a hard limit not in `08_LIMITS`.
+5. **PHASE 3 and PHASE 4** explicitly documented in PLAN.md.
+6. **Discovery Log template** updated with remote-fetch and agent-install sections.
+7. **Status `ACTIVE (remote-fetch)`** added to the result classification table.
 
 ### v1.3
 
-- Discovery cross-platform completa (Windows/macOS/Linux + agent alternativi)
-- Catalogo 13 categorie, 50+ skill con raw URL diretti
-- 4 metodi di discovery prioritizzati
-- Injection rules §0.4.4 (regole 1–10)
+- Full cross-platform discovery (Windows/macOS/Linux + alternative agents)
+- Catalog of 13 categories, 50+ skills with direct raw URLs
+- 4 prioritized discovery methods
+- Injection rules §0.4.4 (rules 1–10)
 - Discovery Log template in `00_INDEX.md`
-- User skill priority
+- User skill priority: custom skills always precede catalog skills for the same category

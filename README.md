@@ -60,7 +60,7 @@ The name "Ritroso" means the movement: **the model goes forward, then turns back
 
 ### Method A — Full install (recommended)
 
-Clona o scarica la repo intera e copia la cartella `skills/` nella posizione corretta per il tuo agente:
+Clone the repository and copy the `skills/` folder to the correct location for your agent:
 
 ```bash
 # macOS / Linux
@@ -74,9 +74,9 @@ git clone https://github.com/Domenico0976/Ritroso.md.git
 Copy-Item -Recurse Ritroso.md\skills\* "$env:APPDATA\Claude\skills\"
 ```
 
-### Method B — Skill singola via curl
+### Method B — Single skill via curl
 
-Scarica solo il file `RITROSO.md` nella tua cartella skill:
+Download only the `RITROSO.md` file into your skill folder:
 
 ```bash
 # macOS / Linux
@@ -92,29 +92,29 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Domenico0976/Ritroso.m
 
 ### Method C — Inject via URL (no install)
 
-Non hai bisogno di installare nulla. L'agente — se supporta il fetch HTTP — caricherà le regole direttamente dal raw URL ad ogni generazione:
+No installation needed. If your agent supports HTTP fetch, it will load the rules directly from the raw URL on every generation:
 
 ```
 https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/RITROSO.md
 ```
 
-Incolla questo URL nel context, nel system prompt, o dì all'agente:
+Paste this URL into the context, the system prompt, or tell the agent:
 
-> "Carica le regole da: https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/RITROSO.md"
+> "Load rules from: https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/RITROSO.md"
 
-Nota: le regole iniettate via URL sono valide **solo per la generazione corrente** e vengono taggate `[SKILL:ritroso:remote-fetch]` nell'output.
+Note: rules injected via URL are valid **for the current generation only** and are tagged `[SKILL:ritroso:remote-fetch]` in the output.
 
 ---
 
 ## How to Use
 
-1. Installa la skill con uno dei metodi sopra (o usa il raw URL)
-2. Fornisci un prompt di progetto al tuo agente
-3. Il sistema classifica automaticamente il dominio
-4. Il motore di Skill Discovery trova, fetcha o installa le skill rilevanti
-5. Se manca contesto critico, ti verrà posta **una domanda alla volta**
-6. Trovi i 13 file generati in `new-ideas/{domain}/{project}/`
-7. Il `00_INDEX.md` include il **Discovery Log** con tutti i metodi usati
+1. Install the skill using one of the methods above (or use the raw URL)
+2. Provide a project prompt to your agent
+3. The system automatically classifies the domain
+4. The Skill Discovery Engine finds, fetches, or installs relevant skills
+5. If critical context is missing, you will be asked **one question at a time**
+6. The 13 generated files are saved in `new-ideas/{domain}/{project}/`
+7. `00_INDEX.md` includes the **Discovery Log** listing every method used
 
 ---
 
