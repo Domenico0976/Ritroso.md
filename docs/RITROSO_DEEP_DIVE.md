@@ -15,7 +15,7 @@ PHASE 0  → Intake, domain classification, ambiguity count, Skill Discovery
 PHASE 1  → Inference Loop: 13 inter-file questions before writing
 PHASE 2  → Panel of Agents: 4 agents validate every file
 PHASE 3  → File Generation: 13 files in fixed order
-PHASE 4  → Close Gate: 8 closing conditions
+PHASE 4  → Close Gate: 7 closing conditions
 ```
 
 ### Non-blocking principle
@@ -72,7 +72,7 @@ Method 2 (Direct path scan)
     ↓ [0 results or access denied]
 Method 3 (Grep fallback)
     ↓ [0 results or no shell access]
-Method C (Remote fetch)        ← NEW in v1.4
+Method C (Remote fetch)        ← introduced in v1.4
     ↓ [0 results or no HTTP]
 Method 4 (Inference)
 ```
@@ -138,7 +138,7 @@ Get-ChildItem -Path $HOME -Recurse -Filter "SKILL.md" -ErrorAction SilentlyConti
 
 ### Method C — Remote Fetch (v1.4)
 
-This is the most innovative method in v1.4. When all local methods fail, the agent **does not wait for the user to install skills** — it fetches them autonomously.
+This is the most innovative method introduced in v1.4. When all local methods fail, the agent **does not wait for the user to install skills** — it fetches them autonomously.
 
 **Detailed behavior:**
 
@@ -266,6 +266,19 @@ Every assumption in `12_ASKED.md` must carry one of two tags:
 
 `ASSUMED-NO-BASIS` assumptions are automatically flagged in `10_ERROR.md` as high-uncertainty risks.
 
+### Structured ASSUMED format (v1.5)
+
+Free-text consequences for `[ASSUMED-NO-BASIS]` entries are no longer accepted. Every entry **must** use the 4-field structure:
+
+```
+- [ASSUMED-NO-BASIS] {claim}
+  → Files affected: {comma-separated list of Ritroso files}
+  → Scope impact: {low / medium / high}
+  → Entry in 10_ERROR: {exact scenario name as written in 10_ERROR}
+```
+
+If the consequence cannot be expressed in this structure, the assumption is under-specified and must be escalated to GATE 0 as a structural ambiguity.
+
 ### Goal compatibility check
 
 Explicit step: *"Are the goals in `01_GOAL` mutually compatible?"* — if a conflict is found → flagged in `11_INTERPOLATION.md` as `[GOAL-CONFLICT]` with an explicit description.
@@ -275,6 +288,8 @@ Explicit step: *"Are the goals in `01_GOAL` mutually compatible?"* — if a conf
 ## 7. PHASE 2 — Panel of Agents
 
 Every generated file passes through 4 agents before it can be closed. If an agent raises a `BLOCK`, the file is **regenerated** — not annotated. A file with an open BLOCK cannot be closed.
+
+The Panel is not a global binary check. Every agent's verdict must be recorded **per file** in the `00_INDEX.md` Panel of Agents table. Declaring "no open BLOCKs" without the per-file table is a protocol violation.
 
 ### 🏛 ARCHITECT
 
@@ -290,8 +305,8 @@ Blocks if:
 **Guiding question**: *"Can someone who did not write this prompt read this file and know exactly what to do next?"*
 
 Blocks if:
-- `03_NEXT_STEPS` contains a step with no concrete output
-- `02_PRODUCT` has no user flow (minimum 3 steps)
+- `03_NEXT_STEPS` contains a step with no concrete, testable output
+- `02_PRODUCT` has no user flow (minimum 3 steps: entry → action → outcome)
 - `09_AGENTS` lists a role with no concrete responsibility
 
 ### ⚙️ PRAGMATIST
@@ -302,16 +317,18 @@ Blocks if:
 - P1 scope exceeds budget by >50%
 - A component requires expertise not present in `09_AGENTS`
 - `06_PRICE` and `07_BUDGET` are inconsistent
-- Any P1 step depends on an unresolved OPEN
+- Any P1 step depends on an unresolved OPEN in `12_ASKED`
 
 ### 🔒 CRITIC (enhanced in v1.4)
 
 **Guiding question**: *"What is the most likely way this fails in the first 30 days?"*
 
 Blocks if:
-- `10_ERROR` has fewer than 3 failure scenarios
+- `10_ERROR` has fewer than 3 concrete failure scenarios
+- `10_ERROR` contains only technical failures — at least one human/organisational failure required
 - A security skill is injected but no security owner is named in `09_AGENTS`
-- **[NEW v1.4]** A `[SKILL:*:remote-fetch]` rule covers a hard limit not present in `08_LIMITS`
+- An `[ASSUMED-NO-BASIS]` item in `12_ASKED` has no matching entry in `10_ERROR`
+- A `[SKILL:*:remote-fetch]` rule covers a hard limit not present in `08_LIMITS`
 
 ---
 
@@ -320,22 +337,47 @@ Blocks if:
 Files are always generated in this fixed order:
 
 ```
-1.  00_INDEX.md          ← Includes Skill Discovery Log
+1.  00_INDEX.md          ← Includes Skill Discovery Log + per-file Panel table
 2.  01_GOAL.md
 3.  02_PRODUCT.md
-4.  03_NEXT_STEPS.md
+4.  03_NEXT_STEPS.md     ← MANDATORY — DO NOT SKIP
 5.  04_ELEMENTS.md
 6.  05_COMPONENTS.md     ← Includes injected skill rules
 7.  06_PRICE.md
 8.  07_BUDGET.md
-9.  08_LIMITS.md         ← Every injected rule becomes a Hard Limit
-10. 09_AGENTS.md
+9.  08_LIMITS.md         ← Every injected rule tagged [SKILL:name], every limit on every line
+10. 09_AGENTS.md         ← Unconfirmed roles tagged [ASSUMED-NO-BASIS]
 11. 10_ERROR.md
-12. 11_INTERPOLATION.md  ← Flags SKILL-CONFLICT and GOAL-CONFLICT
-13. 12_ASKED.md          ← All assumptions tagged
+12. 11_INTERPOLATION.md  ← [SKILL-CONFLICT: none verified] and [GOAL-CONFLICT: none verified] if clean
+13. 12_ASKED.md          ← All [ASSUMED-NO-BASIS] in 4-field structured format
 ```
 
+**Enforcement note on 03_NEXT_STEPS**: The agent MUST NOT proceed past file 03 without completing `03_NEXT_STEPS`. This file is the prerequisite for all PRAGMATIST and DESIGNER BLOCKs on every subsequent file. A generation set missing `03_NEXT_STEPS` is incomplete by definition — PHASE 4 cannot close.
+
 The order is not arbitrary: each file builds on the previous ones. After each file, the agent runs a self-check: *"Does this file contradict any file already written?"*. If yes → resolve before proceeding.
+
+### Special rules per file (v1.5)
+
+**08_LIMITS.md — mandatory [SKILL:ritroso] tagging**
+Every hard limit line must carry the tag `[SKILL:ritroso]` (or `[SKILL:name:remote-fetch]` for remote-fetched rules) on the same line:
+```
+- No silent error swallowing — all errors must be logged and surfaced. [SKILL:ritroso]
+```
+A limit without a tag is treated as unverified by CRITIC.
+
+**11_INTERPOLATION.md — explicit none-verification**
+If no SKILL-CONFLICT or GOAL-CONFLICT is found, these lines are still required:
+```
+[SKILL-CONFLICT: none verified]
+[GOAL-CONFLICT: none verified]
+```
+Silence is not acceptable — the PHASE 4 gate cannot distinguish "clean" from "forgotten".
+
+**12_ASKED.md — structured ASSUMED format**
+Every `[ASSUMED-NO-BASIS]` entry must use the 4-field structure (see §6 above).
+
+**09_AGENTS.md — role tagging**
+Every role or fallback owner not explicitly named in the original prompt must be tagged `[ASSUMED-NO-BASIS]` inline and listed in `12_ASKED.md` with the structured format.
 
 ---
 
@@ -343,18 +385,19 @@ The order is not arbitrary: each file builds on the previous ones. After each fi
 
 Generation is not complete until all conditions pass:
 
-- [ ] All 13 files generated
-- [ ] `00_INDEX.md` includes the Discovery Log with method used and all fetch/install attempts
+- [ ] All 13 files generated (`03_NEXT_STEPS` absence = hard failure, PHASE 4 cannot open)
+- [ ] `00_INDEX.md` includes the Skill Discovery Log AND the per-file Panel of Agents table
 - [ ] Every ACTIVE skill (local or remote-fetch) has rules injected into at least one target file
-- [ ] Every ABSENT recommended skill has install instructions in `00_INDEX.md`
-- [ ] `08_LIMITS.md` contains at least one hard limit per injected skill
-- [ ] `11_INTERPOLATION.md` flags any `[SKILL-CONFLICT]` or `[GOAL-CONFLICT]`
-- [ ] `12_ASKED.md` has no `ASSUMED-NO-BASIS` items not also present in `10_ERROR`
-- [ ] The Panel of Agents has no open BLOCKs
+- [ ] `08_LIMITS.md` has at least one hard limit per injected skill, **every limit tagged `[SKILL:name]`**
+- [ ] `11_INTERPOLATION.md` contains explicit `[SKILL-CONFLICT: ...]` and `[GOAL-CONFLICT: ...]` lines (even if `none verified`)
+- [ ] `12_ASKED.md` has no `[ASSUMED-NO-BASIS]` without the 4-field structured format
+- [ ] `12_ASKED.md` has no `[ASSUMED-NO-BASIS]` without a matching entry in `10_ERROR`
+
+If any condition fails → return to the relevant phase and resolve.
 
 ---
 
-## 10. The Discovery Log in 00_INDEX.md
+## 10. The Discovery Log and Panel Table in 00_INDEX.md
 
 ```markdown
 ## Skill Discovery Log
@@ -369,11 +412,40 @@ Generation is not complete until all conditions pass:
 - Agent install attempts:
   - `[skill-name]` → [Method B] → [success: path / failed: reason]
 - Custom skills found: [N user-defined SKILL.md files / none]
+
+## Panel of Agents — Validation Log
+| File | ARCHITECT | DESIGNER | PRAGMATIST | CRITIC | Status |
+|------|-----------|----------|------------|--------|--------|
+| 00_INDEX.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 01_GOAL.md  | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 02_PRODUCT.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 03_NEXT_STEPS.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 04_ELEMENTS.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 05_COMPONENTS.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 06_PRICE.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 07_BUDGET.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 08_LIMITS.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 09_AGENTS.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 10_ERROR.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 11_INTERPOLATION.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
+| 12_ASKED.md | ✓ | ✓ | ✓ | ✓ | CLOSED |
 ```
+
+Status must be `CLOSED` or `BLOCKED`. `BLOCKED` = generation incomplete. A global "no open BLOCKs" statement without this table does not satisfy the PHASE 4 gate.
 
 ---
 
 ## 11. Changelog
+
+### v1.5 / Skill v5.2 (August 2026)
+
+Applied 5 gap fixes identified from output analysis:
+
+1. **03_NEXT_STEPS enforcement**: explicit hard stop added to PHASE 3. The agent cannot proceed past file 03 without completing it. PHASE 4 cannot open if the file is absent. Previously the model could skip it with no explicit blocking rule.
+2. **Per-file Panel of Agents table**: `00_INDEX.md` now requires a complete `| File | ARCHITECT | DESIGNER | PRAGMATIST | CRITIC | Status |` table for all 13 files. A binary "no open BLOCKs" statement no longer satisfies the gate.
+3. **Mandatory `[SKILL:ritroso]` tagging in `08_LIMITS`**: every hard limit line must carry its source tag on the same line. Without the tag, the CRITIC gate check for remote-fetch coverage cannot be verified.
+4. **Structured 4-field format for `[ASSUMED-NO-BASIS]` in `12_ASKED`**: free-text consequences replaced with `claim → files affected → scope impact → 10_ERROR entry`. Unstructured consequences are treated as under-specified and escalated to GATE 0.
+5. **Explicit `[SKILL-CONFLICT: none verified]` in `11_INTERPOLATION`**: if no conflict is detected, the agent must still write both lines explicitly. Silence no longer equals clean.
 
 ### v1.4 (August 2026)
 

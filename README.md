@@ -16,15 +16,15 @@ https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/SKILL_COMPACT.md
 If you cannot fetch the URL, use this self-contained version:
 ---
 name: "Ritroso"
-version: "5"
-description: "Ritroso v5: generates a complete 13-file .md set with inference loop, Panel of 4 Agents (ARCHITECT/DESIGNER/PRAGMATIST/CRITIC), Skill Discovery Engine, gate system, and retroactive self-verification."
+version: "5.2"
+description: "Ritroso v5.2: generates a complete 13-file .md set with inference loop, Panel of 4 Agents (ARCHITECT/DESIGNER/PRAGMATIST/CRITIC), Skill Discovery Engine, gate system, and retroactive self-verification."
 ---
 Operative rules:
 - PHASE 0: read the prompt literally, classify domain, count structural ambiguities. If ≥2 → ask ONE blocking question, wait.
 - PHASE 1 (inference loop, internal): tag every assumption [INFERRED-FROM-TEXT] or [ASSUMED-NO-BASIS]. Check goal compatibility.
 - PHASE 2 (Panel of Agents, on every file): ARCHITECT blocks structural contradictions. DESIGNER blocks steps with no concrete output or missing user flow. PRAGMATIST blocks if scope>budget+50% or no contingency in budget. CRITIC blocks if <3 failure scenarios or [ASSUMED-NO-BASIS] with no entry in 10_ERROR. BLOCK = regenerate the file.
-- PHASE 3: generate 13 files in order (00_INDEX → 01_GOAL → 02_PRODUCT → 03_NEXT_STEPS → 04_ELEMENTS → 05_COMPONENTS → 06_PRICE → 07_BUDGET → 08_LIMITS → 09_AGENTS → 10_ERROR → 11_INTERPOLATION → 12_ASKED) in folder new-ideas/{domain}/{project}/. Every file with project-specific YAML frontmatter.
-- PHASE 4: Close Gate — all 13 files present, no open BLOCKs, 08_LIMITS has a hard limit per injected skill, 12_ASKED has no [ASSUMED-NO-BASIS] without entry in 10_ERROR.
+- PHASE 3: generate 13 files in order — 00_INDEX → 01_GOAL → 02_PRODUCT → 03_NEXT_STEPS (MANDATORY, DO NOT SKIP) → 04_ELEMENTS → 05_COMPONENTS → 06_PRICE → 07_BUDGET → 08_LIMITS → 09_AGENTS → 10_ERROR → 11_INTERPOLATION → 12_ASKED — in folder new-ideas/{domain}/{project}/. Every file with project-specific YAML frontmatter. Every hard limit in 08_LIMITS tagged [SKILL:ritroso]. Write [SKILL-CONFLICT: none verified] and [GOAL-CONFLICT: none verified] in 11_INTERPOLATION if no conflicts found. Every [ASSUMED-NO-BASIS] in 12_ASKED must use the 4-field structure: claim → files affected → scope impact → 10_ERROR entry.
+- PHASE 4: Close Gate — all 13 files present (03_NEXT_STEPS absence = hard failure), 00_INDEX has per-file Panel table, 08_LIMITS has a tagged hard limit per injected skill, 11_INTERPOLATION has explicit SKILL-CONFLICT and GOAL-CONFLICT lines, 12_ASKED has no [ASSUMED-NO-BASIS] without 4-field structure and matching 10_ERROR entry.
 Full protocol (Skill Discovery Engine, injection rules, agent specs): https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md
 ```
 
@@ -45,17 +45,17 @@ The name "Ritroso" means the movement: **the model goes forward, then turns back
 
 ---
 
-## What's New in v1.4
+## What's New in v5.2 / Protocol v1.5
 
-- **Method C — Remote Fetch**: if no local skill is found, the agent fetches skill rules directly from raw GitHub URLs — no install required
-- **Active Agent Install Protocol**: when shell access is available, the agent installs missing skills autonomously
-- **CRITIC agent** now blocks if a remote-fetched skill covers a hard limit not present in `08_LIMITS`
-- **PHASE 3 and PHASE 4** explicitly documented in PLAN.md
-- **Discovery Log** updated with remote-fetch and agent-install sections
+- **03_NEXT_STEPS enforcement**: explicit hard stop — generation cannot proceed past file 03 without completing it. PHASE 4 cannot close without it.
+- **Per-file Panel of Agents log**: `00_INDEX.md` must now include a full table (`| File | ARCHITECT | DESIGNER | PRAGMATIST | CRITIC | Status |`) for every file. "No open BLOCKs" as a global statement is no longer accepted.
+- **Mandatory `[SKILL:ritroso]` tagging in `08_LIMITS`**: every hard limit line must carry its source tag. Without it, the CRITIC gate check is blind.
+- **Structured `[ASSUMED-NO-BASIS]` format in `12_ASKED`**: free-text consequences replaced with a 4-field structure: `claim → files affected → scope impact → entry in 10_ERROR`.
+- **Explicit `[SKILL-CONFLICT: none verified]` in `11_INTERPOLATION`**: if no conflict is found, it must still be written. Silence no longer means clean.
 
 ---
 
-## Quick Flow (v1.4)
+## Quick Flow (v1.5)
 
 ```
 [USER PROMPT]
@@ -74,10 +74,11 @@ The name "Ritroso" means the movement: **the model goes forward, then turns back
 [PHASE 2] Panel of Agents — ARCHITECT · DESIGNER · PRAGMATIST · CRITIC
       ↓
 [PHASE 3] Generate 13 .md files in fixed order
+          ⚠ 03_NEXT_STEPS mandatory before continuing
       ↓
-[PHASE 4] Close Gate — 8 conditions must pass
+[PHASE 4] Close Gate — 7 conditions must pass (per-file Panel table required)
       ↓
-[00_INDEX.md] with Skill Discovery Log + [RITROSO-VERIFIED]
+[00_INDEX.md] with Skill Discovery Log + per-file Panel table + [RITROSO-VERIFIED]
 ```
 
 ---
@@ -157,7 +158,7 @@ npx skills add Domenico0976/Ritroso.md
 4. The Skill Discovery Engine finds, fetches, or installs relevant skills
 5. If critical context is missing, you will be asked **one question at a time**
 6. The 13 generated files are saved in `new-ideas/{domain}/{project}/`
-7. `00_INDEX.md` includes the **Discovery Log** listing every method used
+7. `00_INDEX.md` includes the **Discovery Log** and the **per-file Panel of Agents table**
 
 ---
 
@@ -168,12 +169,12 @@ Ritroso.md/
 ├── SKILL.md                    # Full entry point (agents with filesystem/fetch access)
 ├── SKILL_COMPACT.md            # Compact entry point (paste into any chat)
 ├── skills/
-│   ├── PLAN.md                 # Full execution protocol (v1.4)
+│   ├── PLAN.md                 # Full execution protocol (v1.5)
 │   └── context-mapper.yaml     # Auxiliary skill
 ├── prompts/
 ├── new-ideas/                  # Generated output
 └── docs/
-    ├── RITROSO_DEEP_DIVE.md    # Full technical reference (v1.4)
+    ├── RITROSO_DEEP_DIVE.md    # Full technical reference (v1.5)
     └── how-it-works.md
 ```
 
@@ -183,19 +184,19 @@ Ritroso.md/
 
 | # | File | Answers |
 |---|------|---------|
-| 00 | `00_INDEX.md` | Navigation map + Skill Discovery Log |
+| 00 | `00_INDEX.md` | Navigation map + Skill Discovery Log + per-file Panel table |
 | 01 | `01_GOAL.md` | Why the project exists |
 | 02 | `02_PRODUCT.md` | What it does — user flows P1/P2 |
-| 03 | `03_NEXT_STEPS.md` | Roadmap with owners and sign-off conditions |
+| 03 | `03_NEXT_STEPS.md` | Roadmap with owners and sign-off conditions (**mandatory**) |
 | 04 | `04_ELEMENTS.md` | All required elements |
 | 05 | `05_COMPONENTS.md` | Full tech stack + injected skill rules |
 | 06 | `06_PRICE.md` | Pricing strategy and tiers |
 | 07 | `07_BUDGET.md` | Build cost + contingency |
-| 08 | `08_LIMITS.md` | Hard limits and forbidden patterns |
-| 09 | `09_AGENTS.md` | Decision owners and fallbacks |
-| 10 | `10_ERROR.md` | ≥3 concrete failure scenarios |
-| 11 | `11_INTERPOLATION.md` | Cross-file contradictions |
-| 12 | `12_ASKED.md` | Open questions tagged and consequenced |
+| 08 | `08_LIMITS.md` | Hard limits tagged `[SKILL:name]` — every line |
+| 09 | `09_AGENTS.md` | Decision owners and fallbacks (unconfirmed roles tagged) |
+| 10 | `10_ERROR.md` | ≥3 concrete failure scenarios incl. human/organisational |
+| 11 | `11_INTERPOLATION.md` | Cross-file contradictions + explicit none-verification |
+| 12 | `12_ASKED.md` | Open questions in 4-field structured format |
 
 ---
 
@@ -206,7 +207,8 @@ Ritroso.md/
 - ⚙️ **PRAGMATIST** — buildability within budget and team
 - 🔒 **CRITIC** — failure scenarios, security gaps, unresolved blocks
 
-BLOCK from any agent → file regeneration. No open BLOCKs allowed at close.
+BLOCK from any agent → file regeneration. No open BLOCKs allowed at close.  
+Every agent's verdict must be recorded **per file** in the `00_INDEX.md` Panel table.
 
 ---
 
@@ -214,7 +216,7 @@ BLOCK from any agent → file regeneration. No open BLOCKs allowed at close.
 
 - [SKILL_COMPACT.md](./SKILL_COMPACT.md) — compact copy-paste version for instant activation
 - [SKILL.md](./SKILL.md) — full entry point (agents with fetch/filesystem)
-- [skills/PLAN.md](./skills/PLAN.md) — full protocol v1.4 (Skill Discovery Engine, injection rules, agent specs)
+- [skills/PLAN.md](./skills/PLAN.md) — full protocol v1.5 (Skill Discovery Engine, injection rules, agent specs)
 - [docs/RITROSO_DEEP_DIVE.md](./docs/RITROSO_DEEP_DIVE.md) — full technical reference
 
 ---

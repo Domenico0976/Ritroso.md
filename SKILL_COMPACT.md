@@ -1,10 +1,10 @@
 ---
 name: "Ritroso"
-version: "5.1"
-description: "Ritroso v5.1: generates a complete set of 13 .md files for any project. Includes inference loop, Panel of 4 Agents (ARCHITECT/DESIGNER/PRAGMATIST/CRITIC), Skill Discovery Engine (5 methods including remote-fetch), gate system, and retroactive self-verification. Full protocol: https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md"
+version: "5.2"
+description: "Ritroso v5.2: generates a complete set of 13 .md files for any project. Includes inference loop, Panel of 4 Agents (ARCHITECT/DESIGNER/PRAGMATIST/CRITIC), Skill Discovery Engine (5 methods including remote-fetch), gate system, and retroactive self-verification. Full protocol: https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md"
 ---
 
-# RITROSO v5.1 — Active Skill
+# RITROSO v5.2 — Active Skill
 
 ## What to do now that you've read this
 
