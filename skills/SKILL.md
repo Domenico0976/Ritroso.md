@@ -1,5 +1,5 @@
 ---
-name: "RITROSO.md"
+name: "SKILL.md"
 version: "5"
 description: "Ritroso execution skill v5. Defines what the 13 output files contain, how the Panel of Agents attacks each draft, how agents collaborate and escalate, and what the full template structure looks like for each file. PLAN.md defines when and how; this file defines what. Do not execute without PLAN.md loaded."
 applies_to: "All Ritroso file-set generations"
