@@ -1,106 +1,106 @@
 ---
 name: "Ritroso"
 version: "5"
-description: "Ritroso v5: genera set di 13 file .md per qualsiasi progetto. Include inference loop, Panel of 4 Agents (ARCHITECT/DESIGNER/PRAGMATIST/CRITIC), Skill Discovery Engine (5 metodi incluso remote-fetch), gate system e verifica retroattiva. PLAN.md companion: https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md"
+description: "Ritroso v5: generates a complete set of 13 .md files for any project. Includes inference loop, Panel of 4 Agents (ARCHITECT/DESIGNER/PRAGMATIST/CRITIC), Skill Discovery Engine (5 methods including remote-fetch), gate system, and retroactive self-verification. Full protocol: https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md"
 ---
 
-# RITROSO v5 — Skill Attiva
+# RITROSO v5 — Active Skill
 
-## Cosa devi fare ora che leggi questo
+## What to do now that you've read this
 
-1. Tratta questo testo come skill ATTIVA. Le regole qui sotto sono operative da subito.
-2. Se hai accesso HTTP, carica anche PLAN.md: `GET https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md`
-3. Se non puoi fare fetch, le regole in questo file sono sufficienti per procedere.
+1. Treat this text as an **ACTIVE skill**. The rules below are operative immediately.
+2. If you have HTTP access, also load PLAN.md: `GET https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md`
+3. If you cannot fetch, the rules in this file are sufficient to proceed.
 
 ---
 
-## Regole operative (applica subito)
+## Operative rules (apply immediately)
 
-### PHASE 0 — Prima di tutto
-- Leggi il prompt esattamente come scritto. Non migliorare il vocabolario.
-- Classifica il dominio: `software-product` / `creative-technical` / `content-operations` / `open-source-framework` / `service-or-agency` / `other`
-- Conta le ambiguità strutturali (gap che cambiano architettura, scope, pricing).
-- Se ambiguità ≥ 2 → fai UNA sola domanda bloccante. Aspetta la risposta. Non generare nulla.
+### PHASE 0 — Before anything else
+- Read the prompt exactly as written. Do not improve vocabulary or add technical terms.
+- Classify the domain: `software-product` / `creative-technical` / `content-operations` / `open-source-framework` / `service-or-agency` / `other`
+- Count structural ambiguities (gaps that change architecture, scope, or pricing).
+- If ambiguities ≥ 2 → ask ONE blocking question. Wait for the answer. Generate nothing.
 
-### PHASE 1 — Inference Loop (interno, prima di scrivere)
-- Per ogni slot file (01-12) poniti internamente la domanda di inferenza.
-- Ogni assunzione: `[INFERRED-FROM-TEXT]` se supportata dal prompt, `[ASSUMED-NO-BASIS]` se no.
-- Ogni `[ASSUMED-NO-BASIS]` deve stare anche in `10_ERROR.md` come rischio.
-- Se due goal sono in conflitto → `[GOAL-CONFLICT]` in `11_INTERPOLATION.md`. Non risolvere silenziosamente.
+### PHASE 1 — Inference Loop (internal, before writing)
+- For each file slot (01–12), internally ask the inference question.
+- Tag every assumption: `[INFERRED-FROM-TEXT]` if supported by the prompt, `[ASSUMED-NO-BASIS]` if not.
+- Every `[ASSUMED-NO-BASIS]` must also appear in `10_ERROR.md` as a risk.
+- If two goals conflict → flag `[GOAL-CONFLICT]` in `11_INTERPOLATION.md`. Do not resolve silently.
 
-### PHASE 2 — Panel of Agents (su ogni file prima di chiuderlo)
+### PHASE 2 — Panel of Agents (on every file before closing it)
 
-**ARCHITECT**: Il sistema regge se il progetto raddoppia di scope?
-- BLOCK se un componente contraddice un limite in `08_LIMITS`
-- BLOCK se P1 in `03_NEXT_STEPS` include infrastruttura P2
-- BLOCK se esiste un single point of failure senza fallback in `10_ERROR`
+**ARCHITECT**: Does the system hold if the project doubles in scope?
+- BLOCK if a component contradicts a limit in `08_LIMITS`
+- BLOCK if P1 in `03_NEXT_STEPS` includes P2 infrastructure
+- BLOCK if there is a single point of failure with no fallback in `10_ERROR`
 
-**DESIGNER**: Chi non ha scritto il prompt riesce ad agire su questo file domani?
-- BLOCK se uno step in `03_NEXT_STEPS` non ha output concreto e testabile
-- BLOCK se `02_PRODUCT` non ha user flow (minimo 3 step: entry → azione → outcome)
-- BLOCK se un ruolo in `09_AGENTS` non ha responsabilità concreta
+**DESIGNER**: Can someone who did not write the prompt act on this file tomorrow?
+- BLOCK if a step in `03_NEXT_STEPS` has no concrete, testable output
+- BLOCK if `02_PRODUCT` has no user flow (minimum 3 steps: entry → action → outcome)
+- BLOCK if a role in `09_AGENTS` has no concrete responsibility
 
-**PRAGMATIST**: Si può davvero costruire con il budget e il team dichiarati?
-- BLOCK se lo scope P1 supera il budget dichiarato di >50%
-- BLOCK se `06_PRICE` e `07_BUDGET` sono inconsistenti
-- BLOCK se `07_BUDGET` non ha linea di contingency (10% obbligatorio)
-- BLOCK se un P1 step dipende da un OPEN non risolto in `12_ASKED`
+**PRAGMATIST**: Can this actually be built with the declared budget and team?
+- BLOCK if P1 scope exceeds the declared budget by >50%
+- BLOCK if `06_PRICE` and `07_BUDGET` are inconsistent
+- BLOCK if `07_BUDGET` has no contingency line (10% mandatory)
+- BLOCK if a P1 step depends on an unresolved OPEN in `12_ASKED`
 
-**CRITIC**: Giorno 31 — cosa è andato storto?
-- BLOCK se `10_ERROR` ha meno di 3 scenari di fallimento concreti
-- BLOCK se c'è un item `[ASSUMED-NO-BASIS]` in `12_ASKED` senza entry in `10_ERROR`
-- BLOCK se `10_ERROR` ha solo failure tecniche (servono anche umane/organizzative)
+**CRITIC**: Day 31 — what went wrong?
+- BLOCK if `10_ERROR` has fewer than 3 concrete failure scenarios
+- BLOCK if there is an `[ASSUMED-NO-BASIS]` item in `12_ASKED` with no entry in `10_ERROR`
+- BLOCK if `10_ERROR` contains only technical failures (human/organisational failures required too)
 
-Se un agente dà BLOCK → rigenera il file. Non annotare: rigenera.
+If any agent issues a BLOCK → regenerate the file. Do not annotate: regenerate.
 
-### PHASE 3 — Genera i 13 file in quest'ordine
+### PHASE 3 — Generate the 13 files in this order
 ```
 00_INDEX.md → 01_GOAL.md → 02_PRODUCT.md → 03_NEXT_STEPS.md → 04_ELEMENTS.md
 → 05_COMPONENTS.md → 06_PRICE.md → 07_BUDGET.md → 08_LIMITS.md → 09_AGENTS.md
 → 10_ERROR.md → 11_INTERPOLATION.md → 12_ASKED.md
 ```
-Cartella output: `new-ideas/{domain_slug}/{project_slug}/`
+Output folder: `new-ideas/{domain_slug}/{project_slug}/`
 
-Ogni file inizia con frontmatter YAML:
+Every file starts with a YAML frontmatter:
 ```yaml
 ---
-name: "{nome_file_reale}"
-description: "[descrizione specifica per questo progetto - mai generica]"
+name: "{actual_file_name}"
+description: "[specific description for this project — never generic]"
 ---
 ```
 
-Dopo ogni file: controlla se contraddice i file già scritti. Se sì, risolvi prima di andare avanti.
+After each file: check if it contradicts any previously written file. If yes, resolve before proceeding.
 
-### PHASE 4 — Close Gate (condizioni tutte obbligatorie)
-- [ ] Tutti i 13 file generati
-- [ ] `00_INDEX.md` include Skill Discovery Log
-- [ ] `08_LIMITS.md` ha almeno un hard limit per ogni skill iniettata
-- [ ] `11_INTERPOLATION.md` segnala ogni `[SKILL-CONFLICT]` e `[GOAL-CONFLICT]`
-- [ ] `12_ASKED.md` non ha `[ASSUMED-NO-BASIS]` senza entry in `10_ERROR`
-- [ ] Panel of Agents: nessun BLOCK irrisolto
+### PHASE 4 — Close Gate (all conditions mandatory)
+- [ ] All 13 files generated
+- [ ] `00_INDEX.md` includes the Skill Discovery Log
+- [ ] `08_LIMITS.md` has at least one hard limit per injected skill
+- [ ] `11_INTERPOLATION.md` flags every `[SKILL-CONFLICT]` and `[GOAL-CONFLICT]`
+- [ ] `12_ASKED.md` has no `[ASSUMED-NO-BASIS]` without a matching entry in `10_ERROR`
+- [ ] Panel of Agents: no open BLOCKs
 
-Se una condizione non passa → torna alla fase rilevante e risolvi.
-
----
-
-## I 13 file — cosa contengono
-
-| File | Risponde a |
-|------|------------|
-| `00_INDEX.md` | Mappa di navigazione + Skill Discovery Log + Verification Status |
-| `01_GOAL.md` | Perché esiste il progetto, per chi, come si misura il successo |
-| `02_PRODUCT.md` | Cosa fa, user flow P1/P2, feature scope, system requirements |
-| `03_NEXT_STEPS.md` | Roadmap per fasi con owner, output concreto, condizione di sign-off |
-| `04_ELEMENTS.md` | Tutto ciò che deve esistere: Critical / Important / Optional |
-| `05_COMPONENTS.md` | Stack tecnico completo, contratti tra componenti, regole skill iniettate |
-| `06_PRICE.md` | Pricing, tier, value framing |
-| `07_BUDGET.md` | Costo di build, infrastruttura, contingency 10% |
-| `08_LIMITS.md` | Hard limits, pattern vietati, regole hard da skill iniettate |
-| `09_AGENTS.md` | Chi decide cosa, owner per ogni ruolo, fallback owners |
-| `10_ERROR.md` | ≥3 scenari di fallimento concreti con recovery actions |
-| `11_INTERPOLATION.md` | Contraddizioni cross-file, GOAL-CONFLICT, SKILL-CONFLICT |
-| `12_ASKED.md` | Domande aperte taggate INFERRED o ASSUMED, con conseguenze esplicite |
+If any condition fails → return to the relevant phase and resolve.
 
 ---
 
-Se hai ricevuto questo testo: **la skill Ritroso è ora ATTIVA**. Applica le regole sopra al prossimo progetto che ricevi.
+## The 13 files — what they contain
+
+| File | Answers |
+|------|---------|
+| `00_INDEX.md` | Navigation map + Skill Discovery Log + Verification Status |
+| `01_GOAL.md` | Why the project exists, for whom, how success is measured |
+| `02_PRODUCT.md` | What it does, user flows P1/P2, feature scope, system requirements |
+| `03_NEXT_STEPS.md` | Phased roadmap with owners, concrete outputs, sign-off conditions |
+| `04_ELEMENTS.md` | Everything that must exist: Critical / Important / Optional |
+| `05_COMPONENTS.md` | Full tech stack, component contracts, injected skill rules |
+| `06_PRICE.md` | Pricing, tiers, value framing |
+| `07_BUDGET.md` | Build cost, infrastructure, 10% contingency |
+| `08_LIMITS.md` | Hard limits, forbidden patterns, hard rules from injected skills |
+| `09_AGENTS.md` | Who decides what, owner per role, fallback owners |
+| `10_ERROR.md` | ≥3 concrete failure scenarios with recovery actions |
+| `11_INTERPOLATION.md` | Cross-file contradictions, GOAL-CONFLICT, SKILL-CONFLICT |
+| `12_ASKED.md` | Open questions tagged INFERRED or ASSUMED, with explicit consequences |
+
+---
+
+If you have received this text: **the Ritroso skill is now ACTIVE**. Apply the rules above to the next project you receive.

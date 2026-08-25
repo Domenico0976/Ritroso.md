@@ -4,28 +4,28 @@
 
 ---
 
-## ⚡ Attivazione immediata (nessun install)
+## ⚡ Instant activation (no install)
 
-> **Per usare Ritroso adesso**, copia il blocco qui sotto e incollalo come **primo messaggio** nella chat con il tuo modello (Claude, GPT-4o, Gemini, Perplexity, ecc.).
-> Il modello la tratterà come skill attiva immediatamente.
+> **To use Ritroso right now**, copy the block below and paste it as your **first message** in the chat with your model (Claude, GPT-4o, Gemini, Perplexity, etc.).
+> The model will treat it as an active skill immediately.
 
 ```
-Carica questa skill e trattala come attiva per tutta la conversazione:
+Load this skill and treat it as active for the entire conversation:
 https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/SKILL_COMPACT.md
 
-Se non riesci a fare fetch dell'URL, usa questa versione già pronta:
+If you cannot fetch the URL, use this self-contained version:
 ---
 name: "Ritroso"
 version: "5"
-description: "Ritroso v5: genera set di 13 file .md con inference loop, Panel of 4 Agents (ARCHITECT/DESIGNER/PRAGMATIST/CRITIC), Skill Discovery Engine, gate system e verifica retroattiva."
+description: "Ritroso v5: generates a complete 13-file .md set with inference loop, Panel of 4 Agents (ARCHITECT/DESIGNER/PRAGMATIST/CRITIC), Skill Discovery Engine, gate system, and retroactive self-verification."
 ---
-Regole operative:
-- PHASE 0: leggi il prompt esattamente, classifica dominio, conta ambiguità strutturali. Se ≥2 → fai UNA domanda bloccante, aspetta.
-- PHASE 1 (inference loop, interno): marca ogni assunzione [INFERRED-FROM-TEXT] o [ASSUMED-NO-BASIS]. Controlla compatibilità goal.
-- PHASE 2 (Panel of Agents, su ogni file): ARCHITECT blocca contraddizioni strutturali. DESIGNER blocca step senza output concreto o user flow assente. PRAGMATIST blocca se scope>budget+50% o budget senza contingency. CRITIC blocca se <3 failure scenarios o [ASSUMED-NO-BASIS] senza entry in 10_ERROR. BLOCK = rigenera il file.
-- PHASE 3: genera 13 file in ordine (00_INDEX → 01_GOAL → 02_PRODUCT → 03_NEXT_STEPS → 04_ELEMENTS → 05_COMPONENTS → 06_PRICE → 07_BUDGET → 08_LIMITS → 09_AGENTS → 10_ERROR → 11_INTERPOLATION → 12_ASKED) in cartella new-ideas/{domain}/{project}/. Ogni file con frontmatter YAML specifico per il progetto.
-- PHASE 4: Close Gate — tutti i 13 file presenti, nessun BLOCK irrisolto, 08_LIMITS ha hard limit per ogni skill iniettata, 12_ASKED non ha [ASSUMED-NO-BASIS] senza entry in 10_ERROR.
-Per il protocollo completo (Skill Discovery Engine, injection rules, agent specs): https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md
+Operative rules:
+- PHASE 0: read the prompt literally, classify domain, count structural ambiguities. If ≥2 → ask ONE blocking question, wait.
+- PHASE 1 (inference loop, internal): tag every assumption [INFERRED-FROM-TEXT] or [ASSUMED-NO-BASIS]. Check goal compatibility.
+- PHASE 2 (Panel of Agents, on every file): ARCHITECT blocks structural contradictions. DESIGNER blocks steps with no concrete output or missing user flow. PRAGMATIST blocks if scope>budget+50% or no contingency in budget. CRITIC blocks if <3 failure scenarios or [ASSUMED-NO-BASIS] with no entry in 10_ERROR. BLOCK = regenerate the file.
+- PHASE 3: generate 13 files in order (00_INDEX → 01_GOAL → 02_PRODUCT → 03_NEXT_STEPS → 04_ELEMENTS → 05_COMPONENTS → 06_PRICE → 07_BUDGET → 08_LIMITS → 09_AGENTS → 10_ERROR → 11_INTERPOLATION → 12_ASKED) in folder new-ideas/{domain}/{project}/. Every file with project-specific YAML frontmatter.
+- PHASE 4: Close Gate — all 13 files present, no open BLOCKs, 08_LIMITS has a hard limit per injected skill, 12_ASKED has no [ASSUMED-NO-BASIS] without entry in 10_ERROR.
+Full protocol (Skill Discovery Engine, injection rules, agent specs): https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md
 ```
 
 ---
@@ -84,9 +84,9 @@ The name "Ritroso" means the movement: **the model goes forward, then turns back
 
 ## Install Methods
 
-### Metodo 0 — Copia e incolla (nessun install, funziona ovunque)
+### Method 0 — Copy and paste (no install, works everywhere)
 
-Copia il blocco nella sezione ⚡ qui sopra e incollalo come primo messaggio nel chat.
+Copy the block in the ⚡ section above and paste it as your first message in the chat.
 
 ### Method A — Full install
 
@@ -128,16 +128,16 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Domenico0976/Ritroso.m
 
 ### Method C — Raw URL in context
 
-Se il tuo agente supporta fetch HTTP, incolla uno di questi URL nel contesto:
+If your agent supports HTTP fetch, paste one of these URLs into the context:
 
 ```
-# Versione compatta (consigliata per incollare):
+# Compact version (recommended for paste-in):
 https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/SKILL_COMPACT.md
 
-# Versione completa:
+# Full version:
 https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/SKILL.md
 
-# Protocollo completo:
+# Full protocol:
 https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/skills/PLAN.md
 ```
 
@@ -151,13 +151,13 @@ npx skills add Domenico0976/Ritroso.md
 
 ## How to Use
 
-1. Attiva la skill (uno dei metodi sopra, o copia il blocco ⚡)
-2. Fornisci il prompt del progetto al modello
-3. Il sistema classifica il dominio automaticamente
-4. Lo Skill Discovery Engine trova, scarica o inietta skill rilevanti
-5. Se mancano info critiche, riceverai **una domanda alla volta**
-6. I 13 file generati vengono salvati in `new-ideas/{domain}/{project}/`
-7. `00_INDEX.md` include il **Discovery Log** con ogni metodo usato
+1. Activate the skill (any method above, or paste the ⚡ block)
+2. Provide the project prompt to your model
+3. The system automatically classifies the domain
+4. The Skill Discovery Engine finds, fetches, or installs relevant skills
+5. If critical context is missing, you will be asked **one question at a time**
+6. The 13 generated files are saved in `new-ideas/{domain}/{project}/`
+7. `00_INDEX.md` includes the **Discovery Log** listing every method used
 
 ---
 
@@ -165,16 +165,15 @@ npx skills add Domenico0976/Ritroso.md
 
 ```
 Ritroso.md/
-├── SKILL.md                    # Entry point completo (agenti con filesystem/fetch)
-├── SKILL_COMPACT.md            # Entry point compatto (copia-incolla in chat)
+├── SKILL.md                    # Full entry point (agents with filesystem/fetch access)
+├── SKILL_COMPACT.md            # Compact entry point (paste into any chat)
 ├── skills/
-│   ├── PLAN.md                 # Protocollo di esecuzione completo (v1.4)
-│   ├── SKILL.md                # Skill definition originale
-│   └── context-mapper.yaml     # Skill ausiliaria
+│   ├── PLAN.md                 # Full execution protocol (v1.4)
+│   └── context-mapper.yaml     # Auxiliary skill
 ├── prompts/
-├── new-ideas/                  # Output generati
+├── new-ideas/                  # Generated output
 └── docs/
-    ├── RITROSO_DEEP_DIVE.md    # Riferimento tecnico completo (v1.4)
+    ├── RITROSO_DEEP_DIVE.md    # Full technical reference (v1.4)
     └── how-it-works.md
 ```
 
@@ -213,10 +212,10 @@ BLOCK from any agent → file regeneration. No open BLOCKs allowed at close.
 
 ## Documentation
 
-- [SKILL_COMPACT.md](./SKILL_COMPACT.md) — versione copia-incolla per attivazione immediata
-- [SKILL.md](./SKILL.md) — entry point completo (agenti con fetch/filesystem)
-- [skills/PLAN.md](./skills/PLAN.md) — protocollo completo v1.4 (Skill Discovery Engine, injection rules, agent specs)
-- [docs/RITROSO_DEEP_DIVE.md](./docs/RITROSO_DEEP_DIVE.md) — riferimento tecnico approfondito
+- [SKILL_COMPACT.md](./SKILL_COMPACT.md) — compact copy-paste version for instant activation
+- [SKILL.md](./SKILL.md) — full entry point (agents with fetch/filesystem)
+- [skills/PLAN.md](./skills/PLAN.md) — full protocol v1.4 (Skill Discovery Engine, injection rules, agent specs)
+- [docs/RITROSO_DEEP_DIVE.md](./docs/RITROSO_DEEP_DIVE.md) — full technical reference
 
 ---
 
