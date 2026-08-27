@@ -199,7 +199,7 @@ Before writing any file, verify these cross-file relationships are consistent:
 1. **Goal ↔ Pricing**: Success metrics in `01_GOAL` must be compatible with the pricing model in `06_PRICE`. If pricing says "no subscription", metrics cannot reference "recurring purchasers" or "MRR" without explicit qualification (e.g. "repeat one-time purchasers"). If pricing is one-time-only, revenue projections must not assume recurring revenue.
 2. **Budget alignment**: Phase budgets in `03_NEXT_STEPS` must relate clearly to the total in `07_BUDGET`. If phase budgets include founder time valuation, state the hourly rate and total hours. If they don't, state "founder time unpaid — not reflected in infrastructure budget of €X". Never leave the relationship unexplained.
 3. **Role deduplication**: In `09_AGENTS`, no two distinct role entries may refer to the same person. If the same individual holds multiple functions, merge them into a single role with combined responsibilities. "Founder / Product owner" and "Founder / Builder" are the same person — write one role "Founder" with both responsibility sets.
-4. **Encoding sanity**: After generating all files, scan every file for replacement characters (`�`), mojibake patterns (e.g. `Ã©`, `Ã¨`, `Ã²` where `é`, `è`, `ò` are expected), and non-ASCII control characters. If any are found → flag as encoding error and regenerate the affected file with explicit UTF-8 encoding.
+4. **Encoding sanity**: After generating all files, scan every file for replacement characters (U+FFFD, displayed as `?` or mojibake patterns like `Ã©` where `é` is expected), and non-ASCII control characters. If any are found → flag as encoding error and regenerate the affected file with explicit UTF-8 encoding.
 
 **Blocking questions during inference**: if any inference step reveals a critical unknown that blocks coherent generation, STOP and ask the user ONE targeted question. Wait for the answer, then continue. Never proceed with a known critical gap.
 
@@ -247,7 +247,7 @@ Every file passes through all 4 agents. Agents ATTACK the draft — they look fo
 | Agent | Mandate | BLOCK condition examples |
 |-------|---------|-------------------------|
 | 🏛 ARCHITECT | Structural integrity across time, scale, change | Component contradicts a limit in 08_LIMITS; P1 includes P2 infrastructure; single point of failure with no fallback in 10_ERROR; **success metrics in 01_GOAL reference revenue type incompatible with pricing model in 06_PRICE** |
-| 🎨 DESIGNER | Usability and actionability | Step in 03_NEXT_STEPS has no concrete output; 02_PRODUCT has no user flow (min 3 steps); role in 09_AGENTS has no concrete responsibility; **encoding errors or replacement characters (`�`) in any generated file** |
+| 🎨 DESIGNER | Usability and actionability | Step in 03_NEXT_STEPS has no concrete output; 02_PRODUCT has no user flow (min 3 steps); role in 09_AGENTS has no concrete responsibility; **encoding errors or replacement characters (U+FFFD) in any generated file** |
 | ⚙️ PRAGMATIST | Economic and operational feasibility | P1 scope exceeds budget by >50%; 06_PRICE and 07_BUDGET inconsistent; **phase budgets in 03_NEXT_STEPS not explained relative to total budget in 07_BUDGET**; 07_BUDGET has no contingency line; P1 step depends on unresolved OPEN in 12_ASKED |
 | 🔒 CRITIC | Find the most plausible near-term failure | 10_ERROR has <3 concrete failure scenarios; [ASSUMED-NO-BASIS] in 12_ASKED with no risk entry in 10_ERROR; 10_ERROR has only technical failures (no human/organisational); **same person appears as multiple distinct roles in 09_AGENTS instead of being merged into one role** |
 
@@ -279,7 +279,7 @@ Structure:
 
 After all 13 files are written and 00_INDEX is complete, run this check on every generated file:
 
-1. **Encoding scan**: search every file for `�` (replacement character), mojibake patterns (`Ã©`, `Ã¨`, `Ã²`, `Ã«`, `Ã¹` where `é`, `è`, `ò`, `ë`, `ù` are expected), and non-printable control characters (except `\n`, `\r`, `\t`). If found → flag the affected files, determine the corruption source, and regenerate those files with explicit UTF-8 encoding.
+1. **Encoding scan**: search every file for replacement characters (U+FFFD), mojibake patterns (`Ã©`, `Ã¨`, `Ã²`, `Ã«`, `Ã¹` where `é`, `è`, `ò`, `ë`, `ù` are expected), and non-printable control characters (except `\n`, `\r`, `\t`). If found → flag the affected files, determine the corruption source, and regenerate those files with explicit UTF-8 encoding.
 2. **Goal-Pricing consistency**: read `01_GOAL.md` success metrics and `06_PRICE.md` pricing model. Check for contradictions:
    - "recurring purchaser" / "subscription" / "MRR" in goals when pricing is one-time-only
    - "monthly revenue" projections when pricing has no recurring component
@@ -304,7 +304,7 @@ All conditions MUST pass:
 - [ ] **Goal-Pricing consistency**: success metrics in `01_GOAL` are compatible with the pricing model in `06_PRICE` (no "recurring purchasers" if pricing is one-time-only, no MRR if no subscription, etc.)
 - [ ] **Budget alignment**: phase budgets in `03_NEXT_STEPS` are explained relative to total budget in `07_BUDGET` (rate × hours, or explicit "unpaid" notation)
 - [ ] **Role deduplication**: `09_AGENTS` has no duplicate person-role pairs (same individual listed under different role names — merge into one role)
-- [ ] **Encoding validation**: no replacement characters (`�`), mojibake, or non-UTF-8 artifacts in any generated file
+- [ ] **Encoding validation**: no replacement characters (U+FFFD), mojibake, or non-UTF-8 artifacts in any generated file
 
 If any condition fails → return to the relevant phase and resolve before declaring done.
 

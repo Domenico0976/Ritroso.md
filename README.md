@@ -40,7 +40,7 @@ The name "Ritroso" means the movement: **the model goes forward, then turns back
 - **Goal-Pricing consistency**: success metrics in 01_GOAL must be compatible with pricing model in 06_PRICE — e.g. no "recurring purchasers" if pricing is one-time-only
 - **Budget alignment**: phase budgets in 03_NEXT_STEPS must explain their relationship to total budget in 07_BUDGET
 - **Role deduplication**: same person cannot appear as multiple distinct roles in 09_AGENTS — merge into one
-- **Encoding validation**: detects replacement characters (`�`), mojibake, and non-UTF-8 artifacts — regenerates affected files
+- **Encoding validation**: detects replacement characters (U+FFFD), mojibake, and non-UTF-8 artifacts — regenerates affected files
 - **ARCHITECT BLOCK expanded**: now checks goal-pricing compatibility
 - **DESIGNER BLOCK expanded**: now checks for encoding errors
 - **PRAGMATIST BLOCK expanded**: now checks budget alignment
