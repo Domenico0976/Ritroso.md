@@ -1,7 +1,7 @@
 ---
 name: "PLAN.md"
-version: "1.4"
-description: "Mandatory execution protocol for the Ritroso skill. Defines generation phases, project rules, gate conditions, Panel of Agents, and the Skill Discovery & Injection Engine — which scans all known skill paths across Windows/Mac/Linux, falls back to grep when direct access is unavailable, detects active LLM Skills (SKILL.md format) from any platform and any user-defined location, and injects their rules as operative instructions into the relevant Ritroso files during generation. v1.4 adds: Method C URL injection (remote-fetch of raw SKILL.md via catalog URLs), auto-fetch behavior (agent fetches and treats remote skill as ACTIVE inline without install), and active agent install protocol (agent performs install steps autonomously when context permits)."
+version: "6.0"
+description: "Mandatory execution protocol for the Ritroso skill. Defines generation phases, project rules, gate conditions, Panel of Agents, and the Skill Discovery & Injection Engine — which scans all known skill paths across Windows/Mac/Linux, falls back to grep when direct access is unavailable, detects active LLM Skills (SKILL.md format) from any platform and any user-defined location, and injects their rules as operative instructions into the relevant Ritroso files during generation. v1.4 adds: Method C URL injection (remote-fetch of raw SKILL.md via catalog URLs), auto-fetch behavior (agent fetches and treats remote skill as ACTIVE inline without install), and active agent install protocol (agent performs install steps autonomously when context permits). v6.0 supersedes: full protocol now embedded in SKILL.md as single source of truth."
 applies_to: "All Ritroso file-set generations"
 ---
 
