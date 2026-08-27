@@ -1,7 +1,7 @@
 ---
 name: "Ritroso"
-version: "6.0"
-description: "Ritroso v6.0: generates a complete 13-file .md set for any project (software, creative, content, open-source, service). Includes MODEL REASONING, SUB-AGENT QUERIES, SELF-INTERROGATION per file, inference loop, Panel of 4 Agents (ARCHITECT / DESIGNER / PRAGMATIST / CRITIC), Skill Discovery & Injection Engine (5 methods including remote-fetch), blocking-question protocol, and retroactive self-verification. This file is self-contained — no companion files are required."
+version: "6.1"
+description: "Ritroso v6.1: generates a complete 13-file .md set for any project (software, creative, content, open-source, service). Includes MODEL REASONING, SUB-AGENT QUERIES, SELF-INTERROGATION per file, inference loop, Panel of 4 Agents (ARCHITECT / DESIGNER / PRAGMATIST / CRITIC), Skill Discovery & Injection Engine (5 methods including remote-fetch), blocking-question protocol, post-generation quality check (encoding, goal-pricing consistency, budget alignment, role deduplication), and retroactive self-verification. This file is self-contained — no companion files are required."
 applies_to: "All Ritroso file-set generations"
 ---
 
@@ -194,6 +194,13 @@ Tag every assumption:
 
 If two goals conflict → flag `[GOAL-CONFLICT]` in `11_INTERPOLATION.md`. Do not resolve silently.
 
+**Cross-domain consistency check (mandatory, runs alongside the inference loop):**
+Before writing any file, verify these cross-file relationships are consistent:
+1. **Goal ↔ Pricing**: Success metrics in `01_GOAL` must be compatible with the pricing model in `06_PRICE`. If pricing says "no subscription", metrics cannot reference "recurring purchasers" or "MRR" without explicit qualification (e.g. "repeat one-time purchasers"). If pricing is one-time-only, revenue projections must not assume recurring revenue.
+2. **Budget alignment**: Phase budgets in `03_NEXT_STEPS` must relate clearly to the total in `07_BUDGET`. If phase budgets include founder time valuation, state the hourly rate and total hours. If they don't, state "founder time unpaid — not reflected in infrastructure budget of €X". Never leave the relationship unexplained.
+3. **Role deduplication**: In `09_AGENTS`, no two distinct role entries may refer to the same person. If the same individual holds multiple functions, merge them into a single role with combined responsibilities. "Founder / Product owner" and "Founder / Builder" are the same person — write one role "Founder" with both responsibility sets.
+4. **Encoding sanity**: After generating all files, scan every file for replacement characters (`�`), mojibake patterns (e.g. `Ã©`, `Ã¨`, `Ã²` where `é`, `è`, `ò` are expected), and non-ASCII control characters. If any are found → flag as encoding error and regenerate the affected file with explicit UTF-8 encoding.
+
 **Blocking questions during inference**: if any inference step reveals a critical unknown that blocks coherent generation, STOP and ask the user ONE targeted question. Wait for the answer, then continue. Never proceed with a known critical gap.
 
 ### STEP 4 — Create output folder
@@ -219,7 +226,7 @@ Then the rendered project header:
 
 ```markdown
 # {filename} — {project_name}
-Domain: {domain_slug} · Generated: {date} · Ritroso v6.0
+Domain: {domain_slug} · Generated: {date} · Ritroso v6.1
 ```
 
 **File generation order (01→12, INDEX last):**
@@ -239,10 +246,10 @@ Every file passes through all 4 agents. Agents ATTACK the draft — they look fo
 
 | Agent | Mandate | BLOCK condition examples |
 |-------|---------|-------------------------|
-| 🏛 ARCHITECT | Structural integrity across time, scale, change | Component contradicts a limit in 08_LIMITS; P1 includes P2 infrastructure; single point of failure with no fallback in 10_ERROR |
-| 🎨 DESIGNER | Usability and actionability | Step in 03_NEXT_STEPS has no concrete output; 02_PRODUCT has no user flow (min 3 steps); role in 09_AGENTS has no concrete responsibility |
-| ⚙️ PRAGMATIST | Economic and operational feasibility | P1 scope exceeds budget by >50%; 06_PRICE and 07_BUDGET inconsistent; 07_BUDGET has no contingency line; P1 step depends on unresolved OPEN in 12_ASKED |
-| 🔒 CRITIC | Find the most plausible near-term failure | 10_ERROR has <3 concrete failure scenarios; [ASSUMED-NO-BASIS] in 12_ASKED with no risk entry in 10_ERROR; 10_ERROR has only technical failures (no human/organisational) |
+| 🏛 ARCHITECT | Structural integrity across time, scale, change | Component contradicts a limit in 08_LIMITS; P1 includes P2 infrastructure; single point of failure with no fallback in 10_ERROR; **success metrics in 01_GOAL reference revenue type incompatible with pricing model in 06_PRICE** |
+| 🎨 DESIGNER | Usability and actionability | Step in 03_NEXT_STEPS has no concrete output; 02_PRODUCT has no user flow (min 3 steps); role in 09_AGENTS has no concrete responsibility; **encoding errors or replacement characters (`�`) in any generated file** |
+| ⚙️ PRAGMATIST | Economic and operational feasibility | P1 scope exceeds budget by >50%; 06_PRICE and 07_BUDGET inconsistent; **phase budgets in 03_NEXT_STEPS not explained relative to total budget in 07_BUDGET**; 07_BUDGET has no contingency line; P1 step depends on unresolved OPEN in 12_ASKED |
+| 🔒 CRITIC | Find the most plausible near-term failure | 10_ERROR has <3 concrete failure scenarios; [ASSUMED-NO-BASIS] in 12_ASKED with no risk entry in 10_ERROR; 10_ERROR has only technical failures (no human/organisational); **same person appears as multiple distinct roles in 09_AGENTS instead of being merged into one role** |
 
 Injected skill rules (`[SKILL:*]`) are binding project rules for all agents.
 
@@ -268,6 +275,21 @@ Structure:
 - Panel of Agents — Validation Log (per-file table: FILE | ARCHITECT | DESIGNER | PRAGMATIST | CRITIC | STATUS)
 - Verification Status block
 
+### STEP 8.5 — Post-generation Quality Check (before Close Gate)
+
+After all 13 files are written and 00_INDEX is complete, run this check on every generated file:
+
+1. **Encoding scan**: search every file for `�` (replacement character), mojibake patterns (`Ã©`, `Ã¨`, `Ã²`, `Ã«`, `Ã¹` where `é`, `è`, `ò`, `ë`, `ù` are expected), and non-printable control characters (except `\n`, `\r`, `\t`). If found → flag the affected files, determine the corruption source, and regenerate those files with explicit UTF-8 encoding.
+2. **Goal-Pricing consistency**: read `01_GOAL.md` success metrics and `06_PRICE.md` pricing model. Check for contradictions:
+   - "recurring purchaser" / "subscription" / "MRR" in goals when pricing is one-time-only
+   - "monthly revenue" projections when pricing has no recurring component
+   - Any metric that assumes a billing frequency not offered by the pricing model
+   If contradiction found → flag as `[GOAL-CONFLICT: 01_GOAL vs 06_PRICE]`, revise the incompatible metric, and regenerate `01_GOAL.md`.
+3. **Budget alignment**: read `03_NEXT_STEPS` phase budgets and `07_BUDGET` total. Check that each phase budget's relationship to the total is stated (e.g. "€X founder time at €25/h = Y hours, unpaid" or "€X infrastructure cost only"). If unexplained → add the explanation and note it in `07_BUDGET.md` budget assumptions.
+4. **Role deduplication**: scan `09_AGENTS.md` role names and owners. If the same person appears under multiple role names (e.g. "Founder / Product owner" AND "Founder / Builder") → merge into a single role entry with combined responsibilities. Regenerate `09_AGENTS.md` and update any references in other files.
+
+If any check fails → fix the issue, then re-run the check. Do not proceed to Close Gate until all checks pass.
+
 ### STEP 9 — Close Gate
 
 All conditions MUST pass:
@@ -279,6 +301,10 @@ All conditions MUST pass:
 - [ ] `12_ASKED.md` has no `[ASSUMED-NO-BASIS]` without the structured 4-field format
 - [ ] `12_ASKED.md` has no `[ASSUMED-NO-BASIS]` without a matching entry in `10_ERROR`
 - [ ] Panel of Agents: no open BLOCKs (verified per-file in Index table)
+- [ ] **Goal-Pricing consistency**: success metrics in `01_GOAL` are compatible with the pricing model in `06_PRICE` (no "recurring purchasers" if pricing is one-time-only, no MRR if no subscription, etc.)
+- [ ] **Budget alignment**: phase budgets in `03_NEXT_STEPS` are explained relative to total budget in `07_BUDGET` (rate × hours, or explicit "unpaid" notation)
+- [ ] **Role deduplication**: `09_AGENTS` has no duplicate person-role pairs (same individual listed under different role names — merge into one role)
+- [ ] **Encoding validation**: no replacement characters (`�`), mojibake, or non-UTF-8 artifacts in any generated file
 
 If any condition fails → return to the relevant phase and resolve before declaring done.
 
@@ -299,7 +325,7 @@ Then the rendered project header:
 
 ```markdown
 # {filename} — {project_name}
-Domain: {domain_slug} · Generated: {date} · Ritroso v6.0
+Domain: {domain_slug} · Generated: {date} · Ritroso v6.1
 ```
 
 ---
@@ -691,6 +717,9 @@ State explicitly: do any limits in this file contradict 01_GOAL or 02_PRODUCT?
 > "Agent" = any human, team, or automated system with a decision-making role.
 > Every role not explicitly named in the original prompt MUST be tagged [ASSUMED-NO-BASIS]
 > and appear in 12_ASKED with the structured format.
+> **Deduplication rule**: if the same person holds multiple roles, merge them into ONE role
+> with combined responsibilities. Never list "Founder / Product owner" and "Founder / Builder"
+> as separate entries — write one role "Founder" with all responsibilities enumerated.
 
 ## Decision matrix
 | Decision type | Owner | Fallback owner | Escalation path |
@@ -887,7 +916,7 @@ description: "Master navigation and verification surface for {project_name}. Con
 ---
 
 # 00 — Index — {project_name}
-Domain: {domain_slug} · Generated: {date} · Ritroso v6.0
+Domain: {domain_slug} · Generated: {date} · Ritroso v6.1
 Folder: new-ideas/{domain_slug}/{project_name_slug}/
 
 ## Project Overview
@@ -956,6 +985,10 @@ One paragraph: project name, domain, primary goal, target user, P1 scope boundar
 - 08_LIMITS tagged limits: [ ] ALL TAGGED / [ ] UNTAGGED → LIST
 - 11_INTERPOLATION none-verified lines: [ ] PRESENT / [ ] MISSING
 - 12_ASKED 4-field format: [ ] ALL STRUCTURED / [ ] NON-STRUCTURED → LIST
+- Goal-Pricing consistency: [ ] CONSISTENT / [ ] INCONSISTENT → LIST
+- Budget alignment: [ ] EXPLAINED / [ ] UNEXPLAINED → LIST
+- Role deduplication: [ ] CLEAN / [ ] DUPLICATES → LIST
+- Encoding validation: [ ] CLEAN / [ ] CORRUPTED → LIST
 - Gate: [ ] CLOSED (RITROSO-VERIFIED) / [ ] OPEN (reason: ...)
 ```
 

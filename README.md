@@ -19,7 +19,7 @@ https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/SKILL.md
 
 ## What It Is
 
-**Ritroso.md v6.0** is a skill framework for LLM models that forces the model to:
+**Ritroso.md v6.1** is a skill framework for LLM models that forces the model to:
 
 1. Classify the project domain and create a dedicated output folder
 2. Run a **Skill Discovery & Injection Engine** — finds installed skills, fetches missing ones via raw URL, injects their rules into the relevant files
@@ -28,24 +28,25 @@ https://raw.githubusercontent.com/Domenico0976/Ritroso.md/main/SKILL.md
 5. Submit every file to a **Panel of 4 Agents** (Architect, Designer, Pragmatist, Critic) — any BLOCK forces regeneration
 6. Run a **negative self-verification** — the model attacks its own output and must defend it with cross-file consistency
 7. Write `00_INDEX.md` **last** as the master navigation and verification surface
+8. Run a **post-generation quality check** — encoding validation, goal-pricing consistency, budget alignment, role deduplication
 
 The name "Ritroso" means the movement: **the model goes forward, then turns back to verify**.
 
 ---
 
-## What's New in v6.0
+## What's New in v6.1
 
-- **Self-contained**: SKILL.md embeds the full protocol — no companion files required
-- **00_INDEX.md generated LAST**: the index now summarizes everything after all files are written
-- **Project header**: every generated file includes `{project_name}`, `{domain_slug}`, `{date}` metadata
-- **08_LIMITS.md**: every hard limit MUST carry a `[SKILL:name]` tag — untagged limits BLOCK regeneration
-- **10_ERROR.md**: every failure scenario requires Probability, Impact, Detection, Recovery, Prevention
-- **11_INTERPOLATION.md**: `[GOAL-CONFLICT: none verified]` and `[SKILL-CONFLICT: none verified]` are mandatory even when clean
-- **12_ASKED.md**: `[ASSUMED-NO-BASIS]` uses structured 4-field format (claim → files affected → scope impact → 10_ERROR entry)
-- **09_AGENTS.md**: now includes Handoff Protocol and Escalation Paths sections
-- **Blocking-question protocol**: replaces rigid ambiguity-counting with gap-priority questioning (goal → constraint → antipattern → user → stack)
-- **Version unification**: all files now report `Ritroso v6.0`
-- **Removed SKILL_COMPACT.md**: SKILL.md is now the single source of truth for both install and paste-in usage
+- **Post-generation quality check (STEP 8.5)**: encoding scan, goal-pricing consistency, budget alignment, role deduplication
+- **Goal-Pricing consistency**: success metrics in 01_GOAL must be compatible with pricing model in 06_PRICE — e.g. no "recurring purchasers" if pricing is one-time-only
+- **Budget alignment**: phase budgets in 03_NEXT_STEPS must explain their relationship to total budget in 07_BUDGET
+- **Role deduplication**: same person cannot appear as multiple distinct roles in 09_AGENTS — merge into one
+- **Encoding validation**: detects replacement characters (`�`), mojibake, and non-UTF-8 artifacts — regenerates affected files
+- **ARCHITECT BLOCK expanded**: now checks goal-pricing compatibility
+- **DESIGNER BLOCK expanded**: now checks for encoding errors
+- **PRAGMATIST BLOCK expanded**: now checks budget alignment
+- **CRITIC BLOCK expanded**: now checks for duplicate roles
+- **Close Gate expanded**: 7 → 11 conditions
+- **Version**: all files report `Ritroso v6.1`
 
 ---
 
