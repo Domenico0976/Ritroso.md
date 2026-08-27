@@ -1,5 +1,7 @@
 # Ignore all test files and directories
 TEST/*
 !TEST/.gitignore
-.omo/*
-.codegraph/*
+
+# Ignore tool-generated directories
+.omo
+.codegraph
