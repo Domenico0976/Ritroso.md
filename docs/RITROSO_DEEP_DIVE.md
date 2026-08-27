@@ -1,4 +1,4 @@
-# Ritroso.md — Deep-Dive Technical Reference
+﻿# Ritroso.md — Deep-Dive Technical Reference
 
 This document covers every component of the Ritroso protocol in detail: the file-set structure, the Skill Discovery Engine, the Panel of Agents, and the injection rules. It is the complete reference for understanding every implementation decision.
 
